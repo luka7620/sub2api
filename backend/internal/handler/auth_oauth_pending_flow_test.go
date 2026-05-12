@@ -2928,6 +2928,18 @@ func (r *oauthPendingFlowUserRepo) RemoveGroupFromAllowedGroups(context.Context,
 	panic("unexpected RemoveGroupFromAllowedGroups call")
 }
 
+func (r *oauthPendingFlowUserRepo) GetDailyCheckInStatus(context.Context, int64) (int, *time.Time, error) {
+	panic("unexpected GetDailyCheckInStatus call")
+}
+
+func (r *oauthPendingFlowUserRepo) GetDailyCheckInMonth(context.Context, int64, int, time.Month) ([]time.Time, error) {
+	panic("unexpected GetDailyCheckInMonth call")
+}
+
+func (r *oauthPendingFlowUserRepo) ApplyDailyCheckIn(context.Context, int64, float64, time.Time) (int, *time.Time, error) {
+	panic("unexpected ApplyDailyCheckIn call")
+}
+
 func (r *oauthPendingFlowUserRepo) AddGroupToAllowedGroups(context.Context, int64, int64) error {
 	panic("unexpected AddGroupToAllowedGroups call")
 }
