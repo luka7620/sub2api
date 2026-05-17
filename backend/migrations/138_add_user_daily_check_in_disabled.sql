@@ -1,0 +1,2 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS daily_check_in_disabled BOOLEAN NOT NULL DEFAULT FALSE;

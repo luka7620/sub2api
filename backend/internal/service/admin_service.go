@@ -116,26 +116,30 @@ type AdminService interface {
 
 // CreateUserInput represents input for creating a new user via admin operations.
 type CreateUserInput struct {
-	Email         string
-	Password      string
-	Username      string
-	Notes         string
-	Balance       float64
-	Concurrency   int
-	RPMLimit      int
-	AllowedGroups []int64
+	Email               string
+	Password            string
+	Username            string
+	Notes               string
+	Role                string
+	Balance             float64
+	Concurrency         int
+	RPMLimit            int
+	DailyCheckInEnabled *bool
+	AllowedGroups       []int64
 }
 
 type UpdateUserInput struct {
-	Email         string
-	Password      string
-	Username      *string
-	Notes         *string
-	Balance       *float64 // 使用指针区分"未提供"和"设置为0"
-	Concurrency   *int     // 使用指针区分"未提供"和"设置为0"
-	RPMLimit      *int     // 使用指针区分"未提供"和"设置为0"
-	Status        string
-	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	Email               string
+	Password            string
+	Username            *string
+	Notes               *string
+	Role                string
+	Balance             *float64 // 使用指针区分"未提供"和"设置为0"
+	Concurrency         *int     // 使用指针区分"未提供"和"设置为0"
+	RPMLimit            *int     // 使用指针区分"未提供"和"设置为0"
+	DailyCheckInEnabled *bool
+	Status              string
+	AllowedGroups       *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
@@ -661,16 +665,20 @@ func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error)
 }
 
 func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInput) (*User, error) {
+	role := normalizeAdminManagedUserRole(input.Role)
 	user := &User{
 		Email:         input.Email,
 		Username:      input.Username,
 		Notes:         input.Notes,
-		Role:          RoleUser, // Always create as regular user, never admin
+		Role:          role,
 		Balance:       input.Balance,
 		Concurrency:   input.Concurrency,
 		RPMLimit:      input.RPMLimit,
 		Status:        StatusActive,
 		AllowedGroups: input.AllowedGroups,
+	}
+	if input.DailyCheckInEnabled != nil {
+		user.DailyCheckInDisabled = !*input.DailyCheckInEnabled
 	}
 	if err := user.SetPassword(input.Password); err != nil {
 		return nil, err
@@ -680,6 +688,15 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
 	return user, nil
+}
+
+func normalizeAdminManagedUserRole(role string) string {
+	switch strings.TrimSpace(role) {
+	case RoleProtected:
+		return RoleProtected
+	default:
+		return RoleUser
+	}
 }
 
 func (s *adminServiceImpl) assignDefaultSubscriptions(ctx context.Context, userID int64) {
@@ -744,12 +761,22 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 		user.Status = input.Status
 	}
 
+	if input.Role != "" {
+		if user.Role == RoleAdmin {
+			return nil, errors.New("cannot change admin user role")
+		}
+		user.Role = normalizeAdminManagedUserRole(input.Role)
+	}
+
 	if input.Concurrency != nil {
 		user.Concurrency = *input.Concurrency
 	}
 
 	if input.RPMLimit != nil {
 		user.RPMLimit = *input.RPMLimit
+	}
+	if input.DailyCheckInEnabled != nil {
+		user.DailyCheckInDisabled = !*input.DailyCheckInEnabled
 	}
 
 	if input.AllowedGroups != nil {

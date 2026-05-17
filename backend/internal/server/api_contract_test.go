@@ -56,6 +56,7 @@ func TestAPIContracts(t *testing.T) {
 					"balance": 12.5,
 					"concurrency": 5,
 					"rpm_limit": 0,
+					"daily_check_in_enabled": true,
 					"status": "active",
 					"allowed_groups": null,
 					"created_at": "2025-01-02T03:04:05Z",
@@ -1171,6 +1172,91 @@ func TestAPIContracts(t *testing.T) {
 				}
 			}`,
 		},
+		{
+			name:       "GET /api/v1/admin/settings/cleanup-rules",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/settings/cleanup-rules",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"invitation_code_enabled": true,
+					"invitation_code_ttl_hours": 24,
+					"balance_code_enabled": true,
+					"balance_code_ttl_hours": 24,
+					"inactive_login_enabled": true,
+					"inactive_login_ttl_hours": 72,
+					"missing_api_key_enabled": true,
+					"missing_api_key_ttl_hours": 72,
+					"no_usage_enabled": true,
+					"no_usage_ttl_hours": 168,
+					"cleanup_affiliate_enabled": true,
+					"preview_sample_limit": 50
+				}
+			}`,
+		},
+		{
+			name:   "PUT /api/v1/admin/settings/cleanup-rules normalizes payload",
+			method: http.MethodPut,
+			path:   "/api/v1/admin/settings/cleanup-rules",
+			body: `{
+				"invitation_code_enabled": false,
+				"invitation_code_ttl_hours": 0,
+				"balance_code_enabled": true,
+				"balance_code_ttl_hours": 2,
+				"inactive_login_enabled": false,
+				"inactive_login_ttl_hours": -1,
+				"missing_api_key_enabled": true,
+				"missing_api_key_ttl_hours": 3,
+				"no_usage_enabled": true,
+				"no_usage_ttl_hours": 4,
+				"cleanup_affiliate_enabled": false,
+				"preview_sample_limit": 600
+			}`,
+			headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"invitation_code_enabled": false,
+					"invitation_code_ttl_hours": 24,
+					"balance_code_enabled": true,
+					"balance_code_ttl_hours": 2,
+					"inactive_login_enabled": false,
+					"inactive_login_ttl_hours": 72,
+					"missing_api_key_enabled": true,
+					"missing_api_key_ttl_hours": 3,
+					"no_usage_enabled": true,
+					"no_usage_ttl_hours": 4,
+					"cleanup_affiliate_enabled": false,
+					"preview_sample_limit": 500
+				}
+			}`,
+		},
+		{
+			name:       "POST /api/v1/admin/settings/cleanup-rules/preview unavailable",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/settings/cleanup-rules/preview",
+			wantStatus: http.StatusServiceUnavailable,
+			wantJSON: `{
+				"code": 503,
+				"message": "Cleanup rules service unavailable"
+			}`,
+		},
+		{
+			name:       "POST /api/v1/admin/settings/cleanup-rules/run unavailable",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/settings/cleanup-rules/run",
+			wantStatus: http.StatusServiceUnavailable,
+			wantJSON: `{
+				"code": 503,
+				"message": "Cleanup rules service unavailable"
+			}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1258,7 +1344,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	userHandler := handler.NewUserHandler(userService, nil, nil, nil, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
-	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil)
+	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	jwtAuth := func(c *gin.Context) {
@@ -1314,6 +1400,10 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin := v1.Group("/admin")
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
+	v1Admin.GET("/settings/cleanup-rules", adminSettingHandler.GetCleanupRulesSettings)
+	v1Admin.PUT("/settings/cleanup-rules", adminSettingHandler.UpdateCleanupRulesSettings)
+	v1Admin.POST("/settings/cleanup-rules/preview", adminSettingHandler.PreviewCleanupRules)
+	v1Admin.POST("/settings/cleanup-rules/run", adminSettingHandler.RunCleanupRules)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
 
 	return &contractDeps{

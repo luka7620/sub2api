@@ -62,6 +62,7 @@ const createAdminUser = (): AdminUser => ({
   role: 'user',
   balance: 0,
   concurrency: 1,
+  daily_check_in_enabled: true,
   status: 'active',
   allowed_groups: [],
   balance_notify_enabled: false,

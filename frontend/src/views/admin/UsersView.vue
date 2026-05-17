@@ -29,7 +29,8 @@
                 :options="[
                   { value: '', label: t('admin.users.allRoles') },
                   { value: 'admin', label: t('admin.users.admin') },
-                  { value: 'user', label: t('admin.users.user') }
+                  { value: 'user', label: t('admin.users.user') },
+                  { value: 'protected', label: t('admin.users.roles.protected') }
                 ]"
                 @change="applyFilter"
               />
@@ -293,7 +294,7 @@
           </template>
 
           <template #cell-role="{ value }">
-            <span :class="['badge', value === 'admin' ? 'badge-purple' : 'badge-gray']">
+            <span :class="['badge', getRoleBadgeClass(value)]">
               {{ t('admin.users.roles.' + value) }}
             </span>
           </template>
@@ -695,6 +696,12 @@ const getAttributeValue = (userId: number, attrId: number): string => {
   }
 
   return value
+}
+
+const getRoleBadgeClass = (role: string): string => {
+  if (role === 'admin') return 'badge-purple'
+  if (role === 'protected') return 'badge-primary'
+  return 'badge-gray'
 }
 
 // All possible columns (for column settings)

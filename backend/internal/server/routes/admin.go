@@ -424,6 +424,11 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.GET("/admin-api-key", h.Admin.Setting.GetAdminAPIKey)
 		adminSettings.POST("/admin-api-key/regenerate", h.Admin.Setting.RegenerateAdminAPIKey)
 		adminSettings.DELETE("/admin-api-key", h.Admin.Setting.DeleteAdminAPIKey)
+		// 手动清理规则
+		adminSettings.GET("/cleanup-rules", h.Admin.Setting.GetCleanupRulesSettings)
+		adminSettings.PUT("/cleanup-rules", h.Admin.Setting.UpdateCleanupRulesSettings)
+		adminSettings.POST("/cleanup-rules/preview", h.Admin.Setting.PreviewCleanupRules)
+		adminSettings.POST("/cleanup-rules/run", h.Admin.Setting.RunCleanupRules)
 		// 529过载冷却配置
 		adminSettings.GET("/overload-cooldown", h.Admin.Setting.GetOverloadCooldownSettings)
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)

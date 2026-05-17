@@ -1845,6 +1845,10 @@ func init() {
 	userDescRpmLimit := userFields[19].Descriptor()
 	// user.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	user.DefaultRpmLimit = userDescRpmLimit.Default.(int)
+	// userDescDailyCheckInDisabled is the schema descriptor for daily_check_in_disabled field.
+	userDescDailyCheckInDisabled := userFields[20].Descriptor()
+	// user.DefaultDailyCheckInDisabled holds the default value on creation for the daily_check_in_disabled field.
+	user.DefaultDailyCheckInDisabled = userDescDailyCheckInDisabled.Default.(bool)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()
 	_ = userallowedgroupFields
 	// userallowedgroupDescCreatedAt is the schema descriptor for created_at field.

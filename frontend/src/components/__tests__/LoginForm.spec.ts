@@ -95,7 +95,7 @@ describe('LoginForm 核心逻辑', () => {
     mockLogin.mockResolvedValue({
       access_token: 'token',
       token_type: 'Bearer',
-      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
+      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, daily_check_in_enabled: true, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
     })
 
     const wrapper = mount(LoginFormTestComponent)
@@ -169,7 +169,7 @@ describe('LoginForm 核心逻辑', () => {
     resolveLogin!({
       access_token: 'token',
       token_type: 'Bearer',
-      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
+      user: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 0, concurrency: 5, daily_check_in_enabled: true, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
     })
     await flushPromises()
 

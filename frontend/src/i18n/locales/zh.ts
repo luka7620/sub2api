@@ -1826,7 +1826,8 @@ export default {
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
       roles: {
         admin: '管理员',
-        user: '用户'
+        user: '用户',
+        protected: '受保护用户'
       },
       form: {
         emailLabel: '邮箱',
@@ -1846,7 +1847,9 @@ export default {
         selectStatus: '选择状态',
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
-        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效'
+        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效',
+        dailyCheckInEnabled: '启用每日签到',
+        dailyCheckInEnabledHint: '关闭后该用户无法签到或领取签到奖励。'
       },
       adjustBalance: '调整余额',
       adjustConcurrency: '调整并发数',

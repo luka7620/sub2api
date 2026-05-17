@@ -84,6 +84,7 @@ function createUser(overrides: Partial<User> = {}): User {
     role: 'user',
     balance: 10,
     concurrency: 2,
+    daily_check_in_enabled: true,
     status: 'active',
     allowed_groups: null,
     balance_notify_enabled: true,

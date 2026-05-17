@@ -170,6 +170,11 @@ func RpmLimit(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRpmLimit, v))
 }
 
+// DailyCheckInDisabled applies equality check predicate on the "daily_check_in_disabled" field. It's identical to DailyCheckInDisabledEQ.
+func DailyCheckInDisabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDailyCheckInDisabled, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1338,6 +1343,16 @@ func RpmLimitLT(v int) predicate.User {
 // RpmLimitLTE applies the LTE predicate on the "rpm_limit" field.
 func RpmLimitLTE(v int) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldRpmLimit, v))
+}
+
+// DailyCheckInDisabledEQ applies the EQ predicate on the "daily_check_in_disabled" field.
+func DailyCheckInDisabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDailyCheckInDisabled, v))
+}
+
+// DailyCheckInDisabledNEQ applies the NEQ predicate on the "daily_check_in_disabled" field.
+func DailyCheckInDisabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDailyCheckInDisabled, v))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

@@ -2350,7 +2350,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAvailableChannelsEnabled: "false",
 
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
-		SettingKeyAffiliateEnabled: "false",
+		SettingKeyAffiliateEnabled:         "false",
 		SettingKeyDailyCheckInEnabled:      "true",
 		SettingKeyDailyCheckInRewardAmount: "0.1",
 
@@ -3314,6 +3314,66 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 	}
 
 	return s.settingRepo.Set(ctx, SettingKeyRateLimit429CooldownSettings, string(data))
+}
+
+// GetCleanupRulesSettings returns cleanup rule settings, falling back to defaults.
+func (s *SettingService) GetCleanupRulesSettings(ctx context.Context) (*CleanupRulesSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyCleanupRulesSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultCleanupRulesSettings(), nil
+		}
+		return nil, fmt.Errorf("get cleanup rules settings: %w", err)
+	}
+	if value == "" {
+		return DefaultCleanupRulesSettings(), nil
+	}
+
+	settings := DefaultCleanupRulesSettings()
+	if err := json.Unmarshal([]byte(value), settings); err != nil {
+		return DefaultCleanupRulesSettings(), nil
+	}
+	normalizeCleanupRulesSettings(settings)
+	return settings, nil
+}
+
+// SetCleanupRulesSettings stores cleanup rule settings after validation.
+func (s *SettingService) SetCleanupRulesSettings(ctx context.Context, settings *CleanupRulesSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	normalizeCleanupRulesSettings(settings)
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal cleanup rules settings: %w", err)
+	}
+
+	return s.settingRepo.Set(ctx, SettingKeyCleanupRulesSettings, string(data))
+}
+
+func normalizeCleanupRulesSettings(settings *CleanupRulesSettings) {
+	if settings.InvitationCodeTTLHours < 1 {
+		settings.InvitationCodeTTLHours = 24
+	}
+	if settings.BalanceCodeTTLHours < 1 {
+		settings.BalanceCodeTTLHours = 24
+	}
+	if settings.InactiveLoginTTLHours < 1 {
+		settings.InactiveLoginTTLHours = 72
+	}
+	if settings.MissingAPIKeyTTLHours < 1 {
+		settings.MissingAPIKeyTTLHours = 72
+	}
+	if settings.NoUsageTTLHours < 1 {
+		settings.NoUsageTTLHours = 168
+	}
+	if settings.PreviewSampleLimit < 1 {
+		settings.PreviewSampleLimit = 50
+	}
+	if settings.PreviewSampleLimit > 500 {
+		settings.PreviewSampleLimit = 500
+	}
 }
 
 // GetOIDCConnectOAuthConfig 返回用于登录的“最终生效” OIDC 配置。

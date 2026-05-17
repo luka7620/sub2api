@@ -1747,7 +1747,9 @@ export default {
       form: {
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
-        rpmLimitHint: 'Max requests per minute for this user; 0 = unlimited. Acts as a fallback only when the group has no rpm_limit set.'
+        rpmLimitHint: 'Max requests per minute for this user; 0 = unlimited. Acts as a fallback only when the group has no rpm_limit set.',
+        dailyCheckInEnabled: 'Enable daily check-in',
+        dailyCheckInEnabledHint: 'When off, this user cannot check in or receive daily check-in rewards.'
       },
       columns: {
         user: 'User',
@@ -1875,7 +1877,8 @@ export default {
       totalRecharged: 'Total Recharged',
       roles: {
         admin: 'Admin',
-        user: 'User'
+        user: 'User',
+        protected: 'Protected user'
       },
       // Settings Dropdowns
       filterSettings: 'Filter Settings',

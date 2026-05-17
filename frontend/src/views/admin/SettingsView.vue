@@ -3230,6 +3230,723 @@
               </div>
             </div>
           </div>
+
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div
+                class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+              >
+                <div>
+                  <h2
+                    class="text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ localText("手动清理规则", "Manual cleanup rules") }}
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{
+                      localText(
+                        "预览未使用兑换码和沉默普通用户，确认后再执行清退。",
+                        "Preview unused codes and dormant regular users before running cleanup.",
+                      )
+                    }}
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="cleanupRulesSaving || cleanupRulesLoading"
+                    @click="saveCleanupRulesSettings()"
+                  >
+                    <Icon
+                      v-if="!cleanupRulesSaving"
+                      name="check"
+                      size="xs"
+                      class="mr-1"
+                    />
+                    <span
+                      v-else
+                      class="mr-1 h-3 w-3 animate-spin rounded-full border-b-2 border-current"
+                    ></span>
+                    {{
+                      cleanupRulesSaving
+                        ? localText("保存中", "Saving")
+                        : localText("保存规则", "Save rules")
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="
+                      cleanupRulesPreviewing ||
+                      cleanupRulesSaving ||
+                      cleanupRulesLoading
+                    "
+                    @click="previewCleanupRules"
+                  >
+                    <Icon
+                      v-if="!cleanupRulesPreviewing"
+                      name="eye"
+                      size="xs"
+                      class="mr-1"
+                    />
+                    <span
+                      v-else
+                      class="mr-1 h-3 w-3 animate-spin rounded-full border-b-2 border-current"
+                    ></span>
+                    {{
+                      cleanupRulesPreviewing
+                        ? localText("预览中", "Previewing")
+                        : localText("预览", "Preview")
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                    :disabled="
+                      cleanupRulesRunning ||
+                      cleanupRulesPreviewing ||
+                      cleanupRulesSaving ||
+                      cleanupRulesLoading ||
+                      !cleanupRulesPreview ||
+                      cleanupRulesPreview.total_candidates <= 0
+                    "
+                    @click="runCleanupRules"
+                  >
+                    <Icon
+                      v-if="!cleanupRulesRunning"
+                      name="trash"
+                      size="xs"
+                      class="mr-1"
+                    />
+                    <span
+                      v-else
+                      class="mr-1 h-3 w-3 animate-spin rounded-full border-b-2 border-current"
+                    ></span>
+                    {{
+                      cleanupRulesRunning
+                        ? localText("执行中", "Running")
+                        : localText("确认执行", "Run cleanup")
+                    }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-6 p-6">
+              <div
+                v-if="cleanupRulesLoading"
+                class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+              >
+                <span
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></span>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div
+                  class="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                >
+                  {{
+                    localText(
+                      "执行会删除符合条件的兑换码，并软删除命中的普通用户，同时清理登录身份和邀请返利占位。管理员不会被清退。",
+                      "Running cleanup deletes matching codes, soft-deletes matching regular users, and clears auth identity and affiliate placeholders. Admin users are excluded.",
+                    )
+                  }}
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{
+                            localText(
+                              "未使用的邀请码",
+                              "Unused invitation codes",
+                            )
+                          }}
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              "type=invitation，status=unused，超过指定小时。",
+                              "type=invitation, status=unused, older than the configured hours.",
+                            )
+                          }}
+                        </p>
+                      </div>
+                      <Toggle v-model="cleanupRulesForm.invitation_code_enabled" />
+                    </div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("创建超过", "Created before") }}
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        v-model.number="
+                          cleanupRulesForm.invitation_code_ttl_hours
+                        "
+                        type="number"
+                        min="1"
+                        step="1"
+                        class="input max-w-[160px]"
+                        :disabled="!cleanupRulesForm.invitation_code_enabled"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ localText("小时", "hours") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{
+                            localText(
+                              "未使用的额度兑换码",
+                              "Unused balance codes",
+                            )
+                          }}
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              "只处理 type=balance，不包含 concurrency/subscription。",
+                              "Only type=balance is handled; concurrency/subscription are excluded.",
+                            )
+                          }}
+                        </p>
+                      </div>
+                      <Toggle v-model="cleanupRulesForm.balance_code_enabled" />
+                    </div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("创建超过", "Created before") }}
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        v-model.number="cleanupRulesForm.balance_code_ttl_hours"
+                        type="number"
+                        min="1"
+                        step="1"
+                        class="input max-w-[160px]"
+                        :disabled="!cleanupRulesForm.balance_code_enabled"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ localText("小时", "hours") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{
+                            localText(
+                              "注册后从未登录",
+                              "Never logged in after signup",
+                            )
+                          }}
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              "普通用户 created_at 超过阈值且 last_login_at 为空。",
+                              "Regular users older than the threshold with empty last_login_at.",
+                            )
+                          }}
+                        </p>
+                      </div>
+                      <Toggle v-model="cleanupRulesForm.inactive_login_enabled" />
+                    </div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("注册超过", "Signed up before") }}
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        v-model.number="cleanupRulesForm.inactive_login_ttl_hours"
+                        type="number"
+                        min="1"
+                        step="1"
+                        class="input max-w-[160px]"
+                        :disabled="!cleanupRulesForm.inactive_login_enabled"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ localText("小时", "hours") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{
+                            localText(
+                              "注册后未创建 API Key",
+                              "No API key after signup",
+                            )
+                          }}
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              "软删除过的 key 也算创建过，不会命中该规则。",
+                              "Soft-deleted keys still count as created and prevent this match.",
+                            )
+                          }}
+                        </p>
+                      </div>
+                      <Toggle v-model="cleanupRulesForm.missing_api_key_enabled" />
+                    </div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("注册超过", "Signed up before") }}
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        v-model.number="
+                          cleanupRulesForm.missing_api_key_ttl_hours
+                        "
+                        type="number"
+                        min="1"
+                        step="1"
+                        class="input max-w-[160px]"
+                        :disabled="!cleanupRulesForm.missing_api_key_enabled"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ localText("小时", "hours") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="mb-3 flex items-start justify-between gap-4">
+                      <div>
+                        <label class="font-medium text-gray-900 dark:text-white">
+                          {{
+                            localText(
+                              "注册后无调用记录",
+                              "No usage after signup",
+                            )
+                          }}
+                        </label>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              "普通用户超过阈值且 usage_logs 中没有任何记录。",
+                              "Regular users older than the threshold with no usage_logs rows.",
+                            )
+                          }}
+                        </p>
+                      </div>
+                      <Toggle v-model="cleanupRulesForm.no_usage_enabled" />
+                    </div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ localText("注册超过", "Signed up before") }}
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <input
+                        v-model.number="cleanupRulesForm.no_usage_ttl_hours"
+                        type="number"
+                        min="1"
+                        step="1"
+                        class="input max-w-[160px]"
+                        :disabled="!cleanupRulesForm.no_usage_enabled"
+                      />
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ localText("小时", "hours") }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded border border-gray-200 p-4 dark:border-dark-700"
+                  >
+                    <div class="space-y-4">
+                      <div class="flex items-center justify-between gap-4">
+                        <div>
+                          <label
+                            class="font-medium text-gray-900 dark:text-white"
+                          >
+                            {{
+                              localText(
+                                "清理邀请返利占位",
+                                "Clean affiliate placeholders",
+                              )
+                            }}
+                          </label>
+                          <p
+                            class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                          >
+                            {{
+                              localText(
+                                "删除被清退用户的 user_affiliates 记录，并解除他人 inviter_id 引用。",
+                                "Delete user_affiliates rows for cleaned users and clear inviter references pointing to them.",
+                              )
+                            }}
+                          </p>
+                        </div>
+                        <Toggle
+                          v-model="cleanupRulesForm.cleanup_affiliate_enabled"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                        >
+                          {{ localText("预览样本数", "Preview sample limit") }}
+                        </label>
+                        <input
+                          v-model.number="cleanupRulesForm.preview_sample_limit"
+                          type="number"
+                          min="1"
+                          max="500"
+                          step="1"
+                          class="input max-w-[160px]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="cleanupRulesPreview"
+                  class="space-y-5 border-t border-gray-100 pt-5 dark:border-dark-700"
+                >
+                  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div
+                      class="rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    >
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ localText("总候选", "Total candidates") }}
+                      </div>
+                      <div
+                        class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
+                      >
+                        {{
+                          cleanupFormatNumber(
+                            cleanupRulesPreview.total_candidates,
+                          )
+                        }}
+                      </div>
+                    </div>
+                    <div
+                      class="rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    >
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ localText("邀请码", "Invitation codes") }}
+                      </div>
+                      <div
+                        class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
+                      >
+                        {{
+                          cleanupFormatNumber(
+                            cleanupRulesPreview.redeem_codes.invitation.count,
+                          )
+                        }}
+                      </div>
+                    </div>
+                    <div
+                      class="rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    >
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ localText("额度兑换码", "Balance codes") }}
+                      </div>
+                      <div
+                        class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
+                      >
+                        {{
+                          cleanupFormatNumber(
+                            cleanupRulesPreview.redeem_codes.balance.count,
+                          )
+                        }}
+                      </div>
+                    </div>
+                    <div
+                      class="rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                    >
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ localText("普通用户", "Regular users") }}
+                      </div>
+                      <div
+                        class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
+                      >
+                        {{
+                          cleanupFormatNumber(cleanupRulesPreview.users.count)
+                        }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-5"
+                  >
+                    <div
+                      v-for="cutoff in cleanupCutoffRows"
+                      :key="cutoff.key"
+                      class="rounded border border-gray-200 px-3 py-2 dark:border-dark-700"
+                    >
+                      <div class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ cutoff.label }}
+                      </div>
+                      <div class="mt-1 text-gray-900 dark:text-gray-100">
+                        {{ cleanupFormatDate(cutoff.value) }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3"
+                  >
+                    <div
+                      class="rounded border border-gray-200 px-3 py-2 dark:border-dark-700"
+                    >
+                      <span class="text-gray-500 dark:text-gray-400">
+                        {{ cleanupReasonLabel("inactive_login") }}
+                      </span>
+                      <span class="ml-2 font-medium text-gray-900 dark:text-white">
+                        {{
+                          cleanupFormatNumber(
+                            cleanupReasonCount("inactive_login"),
+                          )
+                        }}
+                      </span>
+                    </div>
+                    <div
+                      class="rounded border border-gray-200 px-3 py-2 dark:border-dark-700"
+                    >
+                      <span class="text-gray-500 dark:text-gray-400">
+                        {{ cleanupReasonLabel("missing_api_key") }}
+                      </span>
+                      <span class="ml-2 font-medium text-gray-900 dark:text-white">
+                        {{
+                          cleanupFormatNumber(
+                            cleanupReasonCount("missing_api_key"),
+                          )
+                        }}
+                      </span>
+                    </div>
+                    <div
+                      class="rounded border border-gray-200 px-3 py-2 dark:border-dark-700"
+                    >
+                      <span class="text-gray-500 dark:text-gray-400">
+                        {{ cleanupReasonLabel("no_usage") }}
+                      </span>
+                      <span class="ml-2 font-medium text-gray-900 dark:text-white">
+                        {{ cleanupFormatNumber(cleanupReasonCount("no_usage")) }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="cleanupRulesPreview.total_candidates === 0"
+                    class="rounded border border-dashed border-gray-300 px-4 py-5 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                  >
+                    {{ localText("当前没有命中的候选项。", "No candidates matched the current rules.") }}
+                  </div>
+
+                  <template v-else>
+                    <div
+                      v-for="section in cleanupCodePreviewSections"
+                      :key="section.key"
+                      class="space-y-3"
+                    >
+                      <div class="flex items-center justify-between">
+                        <h3 class="font-medium text-gray-900 dark:text-white">
+                          {{ section.title }}
+                        </h3>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                          {{
+                            localText(
+                              `共 ${cleanupFormatNumber(section.count)} 条`,
+                              `${cleanupFormatNumber(section.count)} total`,
+                            )
+                          }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="section.sample.length === 0"
+                        class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                      >
+                        {{ localText("无样本。", "No sample rows.") }}
+                      </div>
+                      <div v-else class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+                          <thead>
+                            <tr class="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              <th class="py-2 pr-4 font-medium">ID</th>
+                              <th class="py-2 pr-4 font-medium">
+                                {{ localText("兑换码", "Code") }}
+                              </th>
+                              <th class="py-2 pr-4 font-medium">
+                                {{ localText("面值", "Value") }}
+                              </th>
+                              <th class="py-2 pr-4 font-medium">
+                                {{ localText("创建时间", "Created") }}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                            <tr
+                              v-for="code in section.sample"
+                              :key="`${section.key}-${code.id}`"
+                            >
+                              <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                                {{ code.id }}
+                              </td>
+                              <td class="whitespace-nowrap py-2 pr-4 font-mono text-gray-900 dark:text-gray-100">
+                                {{ code.code }}
+                              </td>
+                              <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                                {{ cleanupFormatNumber(code.value) }}
+                              </td>
+                              <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                                {{ cleanupFormatDate(code.created_at) }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </template>
+
+                  <div
+                    v-if="cleanupRulesPreview.users.sample.length > 0"
+                    class="space-y-3"
+                  >
+                    <div class="flex items-center justify-between">
+                      <h3 class="font-medium text-gray-900 dark:text-white">
+                        {{ localText("用户样本", "User sample") }}
+                      </h3>
+                      <span class="text-sm text-gray-500 dark:text-gray-400">
+                        {{
+                          localText(
+                            `共 ${cleanupFormatNumber(cleanupRulesPreview.users.count)} 个`,
+                            `${cleanupFormatNumber(cleanupRulesPreview.users.count)} total`,
+                          )
+                        }}
+                      </span>
+                    </div>
+                    <div class="overflow-x-auto">
+                      <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
+                        <thead>
+                          <tr class="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <th class="py-2 pr-4 font-medium">ID</th>
+                            <th class="py-2 pr-4 font-medium">
+                              {{ localText("用户", "User") }}
+                            </th>
+                            <th class="py-2 pr-4 font-medium">
+                              {{ localText("来源", "Source") }}
+                            </th>
+                            <th class="py-2 pr-4 font-medium">
+                              {{ localText("命中原因", "Reasons") }}
+                            </th>
+                            <th class="py-2 pr-4 font-medium">
+                              {{ localText("注册时间", "Signed up") }}
+                            </th>
+                            <th class="py-2 pr-4 font-medium">
+                              {{ localText("最近登录", "Last login") }}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                          <tr
+                            v-for="user in cleanupRulesPreview.users.sample"
+                            :key="`cleanup-user-${user.id}`"
+                          >
+                            <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                              {{ user.id }}
+                            </td>
+                            <td class="py-2 pr-4">
+                              <div class="font-medium text-gray-900 dark:text-gray-100">
+                                {{ cleanupUserDisplayName(user) }}
+                              </div>
+                              <div
+                                v-if="user.username && user.email"
+                                class="text-xs text-gray-500 dark:text-gray-400"
+                              >
+                                {{ user.email }}
+                              </div>
+                            </td>
+                            <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                              {{ user.signup_source || "-" }}
+                            </td>
+                            <td class="py-2 pr-4">
+                              <div class="flex flex-wrap gap-1.5">
+                                <span
+                                  v-for="reason in user.reasons"
+                                  :key="`${user.id}-${reason}`"
+                                  class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+                                >
+                                  {{ cleanupReasonLabel(reason) }}
+                                </span>
+                              </div>
+                            </td>
+                            <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                              {{ cleanupFormatDate(user.created_at) }}
+                            </td>
+                            <td class="whitespace-nowrap py-2 pr-4 text-gray-600 dark:text-gray-300">
+                              {{ cleanupFormatDate(user.last_login_at) }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  v-if="cleanupRulesRunResult"
+                  class="rounded border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
+                >
+                  <h3 class="font-medium text-green-800 dark:text-green-200">
+                    {{ localText("最近执行结果", "Latest run result") }}
+                  </h3>
+                  <div
+                    class="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"
+                  >
+                    <div
+                      v-for="item in cleanupRunResultRows"
+                      :key="item.key"
+                      class="rounded border border-green-200 bg-white/70 px-3 py-2 dark:border-green-800 dark:bg-dark-900/40"
+                    >
+                      <div class="text-xs text-green-700 dark:text-green-300">
+                        {{ item.label }}
+                      </div>
+                      <div class="mt-1 font-semibold text-gray-900 dark:text-white">
+                        {{ cleanupFormatNumber(item.value) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
         <!-- /Tab: Users -->
 
@@ -6129,6 +6846,9 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  CleanupRulesSettings,
+  CleanupRulesPreview,
+  CleanupRulesRunResult,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -6155,6 +6875,7 @@ import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiErro
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
+import { formatDateTime } from "@/utils/format";
 import {
   isRegistrationEmailSuffixDomainValid,
   normalizeRegistrationEmailSuffixDomain,
@@ -6276,6 +6997,27 @@ const adminApiKeyMasked = ref("");
 const adminApiKeyOperating = ref(false);
 const newAdminApiKey = ref("");
 const subscriptionGroups = ref<AdminGroup[]>([]);
+
+const cleanupRulesLoading = ref(true);
+const cleanupRulesSaving = ref(false);
+const cleanupRulesPreviewing = ref(false);
+const cleanupRulesRunning = ref(false);
+const cleanupRulesPreview = ref<CleanupRulesPreview | null>(null);
+const cleanupRulesRunResult = ref<CleanupRulesRunResult | null>(null);
+const cleanupRulesForm = reactive<CleanupRulesSettings>({
+  invitation_code_enabled: true,
+  invitation_code_ttl_hours: 24,
+  balance_code_enabled: true,
+  balance_code_ttl_hours: 24,
+  inactive_login_enabled: true,
+  inactive_login_ttl_hours: 72,
+  missing_api_key_enabled: true,
+  missing_api_key_ttl_hours: 72,
+  no_usage_enabled: true,
+  no_usage_ttl_hours: 168,
+  cleanup_affiliate_enabled: true,
+  preview_sample_limit: 50,
+});
 
 // Overload Cooldown (529) 状态
 const overloadCooldownLoading = ref(true);
@@ -7940,6 +8682,333 @@ function copyNewKey() {
 }
 
 // Overload Cooldown 方法
+// Cleanup Rules methods
+function cleanupPositiveInt(
+  value: number,
+  fallback: number,
+  max?: number,
+): number {
+  const parsed = Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : 0;
+  if (parsed < 1) {
+    return fallback;
+  }
+  return max ? Math.min(parsed, max) : parsed;
+}
+
+function cleanupRulesPayload(): CleanupRulesSettings {
+  return {
+    invitation_code_enabled: cleanupRulesForm.invitation_code_enabled,
+    invitation_code_ttl_hours: cleanupPositiveInt(
+      cleanupRulesForm.invitation_code_ttl_hours,
+      24,
+    ),
+    balance_code_enabled: cleanupRulesForm.balance_code_enabled,
+    balance_code_ttl_hours: cleanupPositiveInt(
+      cleanupRulesForm.balance_code_ttl_hours,
+      24,
+    ),
+    inactive_login_enabled: cleanupRulesForm.inactive_login_enabled,
+    inactive_login_ttl_hours: cleanupPositiveInt(
+      cleanupRulesForm.inactive_login_ttl_hours,
+      72,
+    ),
+    missing_api_key_enabled: cleanupRulesForm.missing_api_key_enabled,
+    missing_api_key_ttl_hours: cleanupPositiveInt(
+      cleanupRulesForm.missing_api_key_ttl_hours,
+      72,
+    ),
+    no_usage_enabled: cleanupRulesForm.no_usage_enabled,
+    no_usage_ttl_hours: cleanupPositiveInt(
+      cleanupRulesForm.no_usage_ttl_hours,
+      168,
+    ),
+    cleanup_affiliate_enabled: cleanupRulesForm.cleanup_affiliate_enabled,
+    preview_sample_limit: cleanupPositiveInt(
+      cleanupRulesForm.preview_sample_limit,
+      50,
+      500,
+    ),
+  };
+}
+
+function applyCleanupRulesSettings(settings: CleanupRulesSettings) {
+  Object.assign(cleanupRulesForm, {
+    ...settings,
+    invitation_code_ttl_hours: cleanupPositiveInt(
+      settings.invitation_code_ttl_hours,
+      24,
+    ),
+    balance_code_ttl_hours: cleanupPositiveInt(
+      settings.balance_code_ttl_hours,
+      24,
+    ),
+    inactive_login_ttl_hours: cleanupPositiveInt(
+      settings.inactive_login_ttl_hours,
+      72,
+    ),
+    missing_api_key_ttl_hours: cleanupPositiveInt(
+      settings.missing_api_key_ttl_hours,
+      72,
+    ),
+    no_usage_ttl_hours: cleanupPositiveInt(settings.no_usage_ttl_hours, 168),
+    preview_sample_limit: cleanupPositiveInt(
+      settings.preview_sample_limit,
+      50,
+      500,
+    ),
+  });
+}
+
+async function loadCleanupRulesSettings() {
+  cleanupRulesLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getCleanupRulesSettings();
+    applyCleanupRulesSettings(settings);
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        localText("清理规则加载失败。", "Failed to load cleanup rules."),
+      ),
+    );
+  } finally {
+    cleanupRulesLoading.value = false;
+  }
+}
+
+async function saveCleanupRulesSettings(showToast = true): Promise<boolean> {
+  cleanupRulesSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateCleanupRulesSettings(
+      cleanupRulesPayload(),
+    );
+    applyCleanupRulesSettings(updated);
+    if (showToast) {
+      appStore.showSuccess(localText("清理规则已保存。", "Cleanup rules saved."));
+    }
+    return true;
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        localText("清理规则保存失败。", "Failed to save cleanup rules."),
+      ),
+    );
+    return false;
+  } finally {
+    cleanupRulesSaving.value = false;
+  }
+}
+
+async function previewCleanupRules() {
+  cleanupRulesPreviewing.value = true;
+  cleanupRulesRunResult.value = null;
+  try {
+    const saved = await saveCleanupRulesSettings(false);
+    if (!saved) {
+      return;
+    }
+    cleanupRulesPreview.value = await adminAPI.settings.previewCleanupRules();
+    appStore.showSuccess(localText("清理预览已更新。", "Cleanup preview updated."));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        localText("清理预览失败。", "Failed to preview cleanup."),
+      ),
+    );
+  } finally {
+    cleanupRulesPreviewing.value = false;
+  }
+}
+
+async function runCleanupRules() {
+  if (
+    !cleanupRulesPreview.value ||
+    cleanupRulesPreview.value.total_candidates <= 0
+  ) {
+    appStore.showError(
+      localText(
+        "请先预览并确认有命中的候选项。",
+        "Preview first and confirm there are matched candidates.",
+      ),
+    );
+    return;
+  }
+
+  const total = cleanupFormatNumber(cleanupRulesPreview.value.total_candidates);
+  if (
+    !confirm(
+      localText(
+        `确认清退当前预览命中的 ${total} 个候选项？该操作会立即删除兑换码并软删除用户。`,
+        `Run cleanup for the ${total} candidates in the current preview? This immediately deletes codes and soft-deletes users.`,
+      ),
+    )
+  ) {
+    return;
+  }
+
+  cleanupRulesRunning.value = true;
+  try {
+    const saved = await saveCleanupRulesSettings(false);
+    if (!saved) {
+      return;
+    }
+    const result = await adminAPI.settings.runCleanupRules();
+    cleanupRulesRunResult.value = result;
+    cleanupRulesPreview.value = result.preview;
+    appStore.showSuccess(localText("手动清理已执行。", "Cleanup has run."));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        localText("手动清理执行失败。", "Failed to run cleanup."),
+      ),
+    );
+  } finally {
+    cleanupRulesRunning.value = false;
+  }
+}
+
+function cleanupFormatNumber(value: number | string | null | undefined): string {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) {
+    return "0";
+  }
+  return new Intl.NumberFormat(locale.value).format(numeric);
+}
+
+function cleanupFormatDate(value?: string | null): string {
+  return formatDateTime(value) || "-";
+}
+
+function cleanupReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    inactive_login: localText("从未登录", "Never logged in"),
+    missing_api_key: localText("未创建 API Key", "No API key"),
+    no_usage: localText("无调用记录", "No usage"),
+  };
+  return labels[reason] || reason;
+}
+
+function cleanupReasonCount(reason: string): number {
+  return cleanupRulesPreview.value?.users.reason_counts?.[reason] ?? 0;
+}
+
+function cleanupUserDisplayName(
+  user: CleanupRulesPreview["users"]["sample"][number],
+): string {
+  return user.username || user.email || `#${user.id}`;
+}
+
+const cleanupCutoffRows = computed(() => {
+  const cutoffs = cleanupRulesPreview.value?.cutoffs;
+  if (!cutoffs) {
+    return [];
+  }
+  return [
+    {
+      key: "invitation",
+      label: localText("邀请码早于", "Invitation before"),
+      value: cutoffs.invitation_code_before,
+    },
+    {
+      key: "balance",
+      label: localText("额度码早于", "Balance before"),
+      value: cutoffs.balance_code_before,
+    },
+    {
+      key: "inactive",
+      label: localText("未登录用户早于", "Never-login before"),
+      value: cutoffs.inactive_login_before,
+    },
+    {
+      key: "missing-key",
+      label: localText("未建 Key 用户早于", "No-key before"),
+      value: cutoffs.missing_api_key_before,
+    },
+    {
+      key: "no-usage",
+      label: localText("无调用用户早于", "No-usage before"),
+      value: cutoffs.no_usage_before,
+    },
+  ];
+});
+
+const cleanupCodePreviewSections = computed(() => {
+  const preview = cleanupRulesPreview.value;
+  if (!preview) {
+    return [];
+  }
+  return [
+    {
+      key: "invitation",
+      title: localText("邀请码样本", "Invitation code sample"),
+      count: preview.redeem_codes.invitation.count,
+      sample: preview.redeem_codes.invitation.sample,
+    },
+    {
+      key: "balance",
+      title: localText("额度兑换码样本", "Balance code sample"),
+      count: preview.redeem_codes.balance.count,
+      sample: preview.redeem_codes.balance.sample,
+    },
+  ].filter((section) => section.count > 0 || section.sample.length > 0);
+});
+
+const cleanupRunResultRows = computed(() => {
+  const result = cleanupRulesRunResult.value;
+  if (!result) {
+    return [];
+  }
+  return [
+    {
+      key: "invitation",
+      label: localText("已删除邀请码", "Deleted invitation codes"),
+      value: result.deleted_invitation_codes,
+    },
+    {
+      key: "balance",
+      label: localText("已删除额度码", "Deleted balance codes"),
+      value: result.deleted_balance_codes,
+    },
+    {
+      key: "users",
+      label: localText("已软删除用户", "Soft-deleted users"),
+      value: result.soft_deleted_users,
+    },
+    {
+      key: "keys",
+      label: localText("已软删除 API Key", "Soft-deleted API keys"),
+      value: result.soft_deleted_api_keys,
+    },
+    {
+      key: "identities",
+      label: localText("已删除登录身份", "Deleted auth identities"),
+      value: result.deleted_auth_identities,
+    },
+    {
+      key: "affiliates",
+      label: localText("已删除返利占位", "Deleted affiliate rows"),
+      value: result.deleted_user_affiliates,
+    },
+    {
+      key: "inviter-refs",
+      label: localText("已解除邀请人引用", "Cleared inviter refs"),
+      value: result.cleared_affiliate_inviter_refs,
+    },
+  ];
+});
+
+watch(
+  cleanupRulesForm,
+  () => {
+    cleanupRulesPreview.value = null;
+    cleanupRulesRunResult.value = null;
+  },
+  { deep: true },
+);
+
 async function loadOverloadCooldownSettings() {
   overloadCooldownLoading.value = true;
   try {
@@ -8619,6 +9688,7 @@ onMounted(() => {
   loadSettings();
   loadSubscriptionGroups();
   loadAdminApiKey();
+  loadCleanupRulesSettings();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
   loadStreamTimeoutSettings();

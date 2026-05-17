@@ -1105,6 +1105,114 @@ export async function resetWebSearchUsage(payload: {
   );
 }
 
+// ==================== Cleanup Rules Settings ====================
+
+export interface CleanupRulesSettings {
+  invitation_code_enabled: boolean;
+  invitation_code_ttl_hours: number;
+  balance_code_enabled: boolean;
+  balance_code_ttl_hours: number;
+  inactive_login_enabled: boolean;
+  inactive_login_ttl_hours: number;
+  missing_api_key_enabled: boolean;
+  missing_api_key_ttl_hours: number;
+  no_usage_enabled: boolean;
+  no_usage_ttl_hours: number;
+  cleanup_affiliate_enabled: boolean;
+  preview_sample_limit: number;
+}
+
+export interface CleanupRulesCutoffs {
+  invitation_code_before: string;
+  balance_code_before: string;
+  inactive_login_before: string;
+  missing_api_key_before: string;
+  no_usage_before: string;
+}
+
+export interface CleanupRulesCodeCandidate {
+  id: number;
+  code: string;
+  type: string;
+  value: number;
+  status: string;
+  created_at: string;
+}
+
+export interface CleanupRulesUserCandidate {
+  id: number;
+  email: string;
+  username: string;
+  signup_source: string;
+  last_login_at?: string;
+  last_active_at?: string;
+  created_at: string;
+  reasons: string[];
+}
+
+export interface CleanupRulesCodeBucket {
+  count: number;
+  sample: CleanupRulesCodeCandidate[];
+}
+
+export interface CleanupRulesPreview {
+  settings: CleanupRulesSettings;
+  cutoffs: CleanupRulesCutoffs;
+  redeem_codes: {
+    invitation: CleanupRulesCodeBucket;
+    balance: CleanupRulesCodeBucket;
+    total: number;
+  };
+  users: {
+    count: number;
+    reason_counts: Record<string, number>;
+    sample: CleanupRulesUserCandidate[];
+  };
+  total_candidates: number;
+}
+
+export interface CleanupRulesRunResult {
+  preview: CleanupRulesPreview;
+  deleted_invitation_codes: number;
+  deleted_balance_codes: number;
+  soft_deleted_api_keys: number;
+  deleted_auth_identities: number;
+  deleted_user_affiliates: number;
+  cleared_affiliate_inviter_refs: number;
+  soft_deleted_users: number;
+}
+
+export async function getCleanupRulesSettings(): Promise<CleanupRulesSettings> {
+  const { data } = await apiClient.get<CleanupRulesSettings>(
+    "/admin/settings/cleanup-rules",
+  );
+  return data;
+}
+
+export async function updateCleanupRulesSettings(
+  settings: CleanupRulesSettings,
+): Promise<CleanupRulesSettings> {
+  const { data } = await apiClient.put<CleanupRulesSettings>(
+    "/admin/settings/cleanup-rules",
+    settings,
+  );
+  return data;
+}
+
+export async function previewCleanupRules(): Promise<CleanupRulesPreview> {
+  const { data } = await apiClient.post<CleanupRulesPreview>(
+    "/admin/settings/cleanup-rules/preview",
+  );
+  return data;
+}
+
+export async function runCleanupRules(): Promise<CleanupRulesRunResult> {
+  const { data } = await apiClient.post<CleanupRulesRunResult>(
+    "/admin/settings/cleanup-rules/run",
+  );
+  return data;
+}
+
 export const settingsAPI = {
   getSettings,
   updateSettings,
@@ -1127,6 +1235,10 @@ export const settingsAPI = {
   updateWebSearchEmulationConfig,
   testWebSearchEmulation,
   resetWebSearchUsage,
+  getCleanupRulesSettings,
+  updateCleanupRulesSettings,
+  previewCleanupRules,
+  runCleanupRules,
 };
 
 export default settingsAPI;

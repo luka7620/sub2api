@@ -14,8 +14,9 @@ const (
 
 // Role constants
 const (
-	RoleAdmin = domain.RoleAdmin
-	RoleUser  = domain.RoleUser
+	RoleAdmin     = domain.RoleAdmin
+	RoleUser      = domain.RoleUser
+	RoleProtected = domain.RoleProtected
 )
 
 // Affiliate rebate settings
@@ -384,6 +385,8 @@ const (
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
+	// Cleanup rules
+	SettingKeyCleanupRulesSettings = "cleanup_rules_settings"
 )
 
 // AdminAPIKeyPrefix is the prefix for admin API keys (distinct from user "sk-" keys).

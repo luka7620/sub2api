@@ -61,6 +61,8 @@ const (
 	FieldTotalRecharged = "total_recharged"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// FieldDailyCheckInDisabled holds the string denoting the daily_check_in_disabled field in the database.
+	FieldDailyCheckInDisabled = "daily_check_in_disabled"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -206,6 +208,7 @@ var Columns = []string{
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
 	FieldRpmLimit,
+	FieldDailyCheckInDisabled,
 }
 
 var (
@@ -276,6 +279,8 @@ var (
 	DefaultTotalRecharged float64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
+	// DefaultDailyCheckInDisabled holds the default value on creation for the "daily_check_in_disabled" field.
+	DefaultDailyCheckInDisabled bool
 )
 
 // OrderOption defines the ordering options for the User queries.
@@ -399,6 +404,11 @@ func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
+}
+
+// ByDailyCheckInDisabled orders the results by the daily_check_in_disabled field.
+func ByDailyCheckInDisabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDailyCheckInDisabled, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

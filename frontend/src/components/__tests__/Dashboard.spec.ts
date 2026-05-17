@@ -13,7 +13,7 @@ const mockGetDashboardStats = vi.fn()
 vi.mock('@/api', () => ({
   authAPI: {
     getCurrentUser: vi.fn().mockResolvedValue({
-      data: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 100, concurrency: 5, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
+      data: { id: 1, username: 'test', email: 'test@example.com', role: 'user', balance: 100, concurrency: 5, daily_check_in_enabled: true, status: 'active', allowed_groups: null, created_at: '', updated_at: '' },
     }),
     logout: vi.fn(),
     refreshToken: vi.fn(),

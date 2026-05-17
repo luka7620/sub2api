@@ -42,6 +42,49 @@ func TestAdminService_CreateUser_Success(t *testing.T) {
 	require.Equal(t, user, repo.created[0])
 }
 
+func TestAdminService_CreateUser_ProtectedRole(t *testing.T) {
+	repo := &userRepoStub{nextID: 11}
+	svc := &adminServiceImpl{userRepo: repo}
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:    "protected@test.com",
+		Password: "strong-pass",
+		Role:     RoleProtected,
+	})
+	require.NoError(t, err)
+	require.Equal(t, RoleProtected, user.Role)
+	require.Equal(t, RoleProtected, repo.created[0].Role)
+}
+
+func TestAdminService_CreateUser_NormalizesInvalidRole(t *testing.T) {
+	repo := &userRepoStub{nextID: 12}
+	svc := &adminServiceImpl{userRepo: repo}
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:    "invalid-role@test.com",
+		Password: "strong-pass",
+		Role:     RoleAdmin,
+	})
+	require.NoError(t, err)
+	require.Equal(t, RoleUser, user.Role)
+	require.Equal(t, RoleUser, repo.created[0].Role)
+}
+
+func TestAdminService_CreateUser_CanDisableDailyCheckIn(t *testing.T) {
+	repo := &userRepoStub{nextID: 13}
+	svc := &adminServiceImpl{userRepo: repo}
+	enabled := false
+
+	user, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:               "no-check-in@test.com",
+		Password:            "strong-pass",
+		DailyCheckInEnabled: &enabled,
+	})
+	require.NoError(t, err)
+	require.True(t, user.DailyCheckInDisabled)
+	require.True(t, repo.created[0].DailyCheckInDisabled)
+}
+
 func TestAdminService_CreateUser_EmailExists(t *testing.T) {
 	repo := &userRepoStub{createErr: ErrEmailExists}
 	svc := &adminServiceImpl{userRepo: repo}

@@ -715,6 +715,32 @@ func TestGetDailyCheckInStatus_UsesRepositoryAndSettings(t *testing.T) {
 	require.Equal(t, lastCheckIn, *status.LastCheckInAt)
 }
 
+func TestGetDailyCheckInStatus_UserDisabledSkipsRepository(t *testing.T) {
+	repo := &mockUserRepo{
+		getByIDUser: &User{ID: 7, DailyCheckInDisabled: true},
+		getDailyCheckInStatusFn: func(context.Context, int64) (int, *time.Time, error) {
+			t.Fatal("repository should not read check-in status when user daily check-in is disabled")
+			return 0, nil, nil
+		},
+	}
+	settingRepo := &mockUserSettingRepo{
+		values: map[string]string{
+			SettingKeyDailyCheckInEnabled:      "true",
+			SettingKeyDailyCheckInRewardAmount: "1.25",
+		},
+	}
+	svc := NewUserService(repo, settingRepo, nil, nil)
+
+	status, err := svc.GetDailyCheckInStatus(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.False(t, status.Enabled)
+	require.Equal(t, 1.25, status.RewardAmount)
+	require.Zero(t, status.CheckInDays)
+	require.False(t, status.CheckedInToday)
+	require.Nil(t, status.LastCheckInAt)
+}
+
 func TestGetDailyCheckInCalendar_DisabledSkipsRepository(t *testing.T) {
 	repo := &mockUserRepo{
 		getDailyCheckInMonthFn: func(context.Context, int64, int, time.Month) ([]time.Time, error) {
@@ -764,6 +790,31 @@ func TestGetDailyCheckInCalendar_UsesRepository(t *testing.T) {
 	require.True(t, calendar.Enabled)
 	require.Equal(t, []string{"2026-05-01", "2026-05-12"}, calendar.CheckedInDates)
 	require.Equal(t, 2, calendar.CheckedInDays)
+}
+
+func TestGetDailyCheckInCalendar_UserDisabledSkipsRepository(t *testing.T) {
+	repo := &mockUserRepo{
+		getByIDUser: &User{ID: 7, DailyCheckInDisabled: true},
+		getDailyCheckInMonthFn: func(context.Context, int64, int, time.Month) ([]time.Time, error) {
+			t.Fatal("repository should not read check-in calendar when user daily check-in is disabled")
+			return nil, nil
+		},
+	}
+	settingRepo := &mockUserSettingRepo{
+		values: map[string]string{
+			SettingKeyDailyCheckInEnabled: "true",
+		},
+	}
+	svc := NewUserService(repo, settingRepo, nil, nil)
+
+	calendar, err := svc.GetDailyCheckInCalendar(context.Background(), 7, 2026, time.May)
+
+	require.NoError(t, err)
+	require.False(t, calendar.Enabled)
+	require.Equal(t, 2026, calendar.Year)
+	require.Equal(t, 5, calendar.Month)
+	require.Empty(t, calendar.CheckedInDates)
+	require.Zero(t, calendar.CheckedInDays)
 }
 
 func TestApplyDailyCheckIn_DisabledReturnsError(t *testing.T) {
@@ -824,6 +875,26 @@ func TestApplyDailyCheckIn_SuccessInvalidatesCaches(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return cache.invalidateCallCount.Load() == 1
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestApplyDailyCheckIn_UserDisabledReturnsError(t *testing.T) {
+	repo := &mockUserRepo{
+		getByIDUser: &User{ID: 7, DailyCheckInDisabled: true},
+		applyDailyCheckInFn: func(context.Context, int64, float64, time.Time) (int, *time.Time, error) {
+			t.Fatal("repository should not apply check-in when user daily check-in is disabled")
+			return 0, nil, nil
+		},
+	}
+	settingRepo := &mockUserSettingRepo{
+		values: map[string]string{
+			SettingKeyDailyCheckInEnabled: "true",
+		},
+	}
+	svc := NewUserService(repo, settingRepo, nil, nil)
+
+	_, err := svc.ApplyDailyCheckIn(context.Background(), 7)
+
+	require.ErrorIs(t, err, ErrDailyCheckInDisabled)
 }
 
 func TestApplyDailyCheckIn_AlreadyCheckedPreservesSentinel(t *testing.T) {

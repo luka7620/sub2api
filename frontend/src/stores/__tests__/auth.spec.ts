@@ -29,6 +29,7 @@ const fakeUser = {
   role: 'user' as const,
   balance: 100,
   concurrency: 5,
+  daily_check_in_enabled: true,
   status: 'active' as const,
   allowed_groups: null,
   created_at: '2024-01-01',

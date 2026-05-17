@@ -25,6 +25,13 @@
         <label class="input-label">{{ t('admin.users.username') }}</label>
         <input v-model="form.username" type="text" class="input" :placeholder="t('admin.users.enterUsername')" />
       </div>
+      <div>
+        <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
+        <Select
+          v-model="form.role"
+          :options="roleOptions"
+        />
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="input-label">{{ t('admin.users.columns.balance') }}</label>
@@ -47,6 +54,13 @@
         />
         <p class="input-hint">{{ t('admin.users.form.rpmLimitHint') }}</p>
       </div>
+      <div class="flex items-start justify-between gap-4 rounded-lg border border-gray-200 p-3 dark:border-dark-700">
+        <div>
+          <label class="input-label mb-1">{{ t('admin.users.form.dailyCheckInEnabled') }}</label>
+          <p class="input-hint">{{ t('admin.users.form.dailyCheckInEnabledHint') }}</p>
+        </div>
+        <Toggle v-model="form.daily_check_in_enabled" />
+      </div>
     </form>
     <template #footer>
       <div class="flex justify-end gap-3">
@@ -60,16 +74,23 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { useI18n } from 'vue-i18n'; import { adminAPI } from '@/api/admin'
 import { useForm } from '@/composables/useForm'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import Select from '@/components/common/Select.vue'
+import Toggle from '@/components/common/Toggle.vue'
 
 const props = defineProps<{ show: boolean }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n()
 
-const form = reactive({ email: '', password: '', username: '', notes: '', balance: 0, concurrency: 1, rpm_limit: 0 })
+const roleOptions = computed(() => [
+  { value: 'user', label: t('admin.users.roles.user') },
+  { value: 'protected', label: t('admin.users.roles.protected') }
+])
+
+const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as 'user' | 'protected', balance: 0, concurrency: 1, rpm_limit: 0, daily_check_in_enabled: true })
 
 const { loading, submit } = useForm({
   form,
@@ -80,7 +101,7 @@ const { loading, submit } = useForm({
   successMsg: t('admin.users.userCreated')
 })
 
-watch(() => props.show, (v) => { if(v) Object.assign(form, { email: '', password: '', username: '', notes: '', balance: 0, concurrency: 1, rpm_limit: 0 }) })
+watch(() => props.show, (v) => { if(v) Object.assign(form, { email: '', password: '', username: '', notes: '', role: 'user', balance: 0, concurrency: 1, rpm_limit: 0, daily_check_in_enabled: true }) })
 
 const generateRandomPassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'

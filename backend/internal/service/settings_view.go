@@ -442,6 +442,39 @@ func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
 	}
 }
 
+// CleanupRulesSettings controls manual cleanup of unused codes and dormant users.
+type CleanupRulesSettings struct {
+	InvitationCodeEnabled   bool `json:"invitation_code_enabled"`
+	InvitationCodeTTLHours  int  `json:"invitation_code_ttl_hours"`
+	BalanceCodeEnabled      bool `json:"balance_code_enabled"`
+	BalanceCodeTTLHours     int  `json:"balance_code_ttl_hours"`
+	InactiveLoginEnabled    bool `json:"inactive_login_enabled"`
+	InactiveLoginTTLHours   int  `json:"inactive_login_ttl_hours"`
+	MissingAPIKeyEnabled    bool `json:"missing_api_key_enabled"`
+	MissingAPIKeyTTLHours   int  `json:"missing_api_key_ttl_hours"`
+	NoUsageEnabled          bool `json:"no_usage_enabled"`
+	NoUsageTTLHours         int  `json:"no_usage_ttl_hours"`
+	CleanupAffiliateEnabled bool `json:"cleanup_affiliate_enabled"`
+	PreviewSampleLimit      int  `json:"preview_sample_limit"`
+}
+
+func DefaultCleanupRulesSettings() *CleanupRulesSettings {
+	return &CleanupRulesSettings{
+		InvitationCodeEnabled:   true,
+		InvitationCodeTTLHours:  24,
+		BalanceCodeEnabled:      true,
+		BalanceCodeTTLHours:     24,
+		InactiveLoginEnabled:    true,
+		InactiveLoginTTLHours:   72,
+		MissingAPIKeyEnabled:    true,
+		MissingAPIKeyTTLHours:   72,
+		NoUsageEnabled:          true,
+		NoUsageTTLHours:         168,
+		CleanupAffiliateEnabled: true,
+		PreviewSampleLimit:      50,
+	}
+}
+
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置
 func DefaultBetaPolicySettings() *BetaPolicySettings {
 	return &BetaPolicySettings{

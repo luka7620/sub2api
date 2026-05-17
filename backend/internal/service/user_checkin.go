@@ -45,6 +45,16 @@ func (s *UserService) GetDailyCheckInStatus(ctx context.Context, userID int64) (
 			RewardAmount: rewardAmount,
 		}, nil
 	}
+	userEnabled, err := s.isDailyCheckInEnabledForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !userEnabled {
+		return &DailyCheckInStatus{
+			Enabled:      false,
+			RewardAmount: rewardAmount,
+		}, nil
+	}
 
 	checkInDays, lastCheckInAt, err := s.userRepo.GetDailyCheckInStatus(ctx, userID)
 	if err != nil {
@@ -69,6 +79,14 @@ func (s *UserService) GetDailyCheckInCalendar(ctx context.Context, userID int64,
 	if !enabled {
 		return result, nil
 	}
+	userEnabled, err := s.isDailyCheckInEnabledForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !userEnabled {
+		result.Enabled = false
+		return result, nil
+	}
 
 	dates, err := s.userRepo.GetDailyCheckInMonth(ctx, userID, year, month)
 	if err != nil {
@@ -86,6 +104,13 @@ func (s *UserService) GetDailyCheckInCalendar(ctx context.Context, userID int64,
 func (s *UserService) ApplyDailyCheckIn(ctx context.Context, userID int64) (*DailyCheckInStatus, error) {
 	enabled, rewardAmount := s.getDailyCheckInSettings(ctx)
 	if !enabled {
+		return nil, ErrDailyCheckInDisabled
+	}
+	userEnabled, err := s.isDailyCheckInEnabledForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !userEnabled {
 		return nil, ErrDailyCheckInDisabled
 	}
 
@@ -125,6 +150,17 @@ func (s *UserService) getDailyCheckInSettings(ctx context.Context) (bool, float6
 	}
 
 	return enabled, rewardAmount
+}
+
+func (s *UserService) isDailyCheckInEnabledForUser(ctx context.Context, userID int64) (bool, error) {
+	if s == nil || s.userRepo == nil {
+		return true, nil
+	}
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("get daily check-in user: %w", err)
+	}
+	return !user.DailyCheckInDisabled, nil
 }
 
 func buildDailyCheckInStatus(enabled bool, rewardAmount float64, checkInDays int, lastCheckInAt *time.Time, now time.Time) *DailyCheckInStatus {
