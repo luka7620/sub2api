@@ -323,7 +323,7 @@ func (s *stubAdminService) GetAccountAvailableModels(ctx context.Context, accoun
 		return nil, err
 	}
 	modelMapping := account.GetModelMapping()
-	if len(modelMapping) > 0 && !(account.IsOpenAI() && account.IsOpenAIPassthroughEnabled()) {
+	if len(modelMapping) > 0 && (!account.IsOpenAI() || !account.IsOpenAIPassthroughEnabled()) {
 		out := make([]service.AvailableModel, 0, len(modelMapping))
 		for model := range modelMapping {
 			out = append(out, service.AvailableModel{ID: model, Type: "model", DisplayName: model})

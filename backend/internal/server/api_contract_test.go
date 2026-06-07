@@ -319,6 +319,7 @@ func TestAPIContracts(t *testing.T) {
 						"name": "Group One",
 						"description": "desc",
 						"platform": "anthropic",
+						"provider": "",
 						"rate_multiplier": 1.5,
 						"is_exclusive": false,
 						"status": "active",

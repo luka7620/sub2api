@@ -63,7 +63,7 @@ func (s *adminServiceImpl) availableModelsForAccount(ctx context.Context, accoun
 	protocol := PlatformProtocol(platform)
 
 	mapping := account.GetModelMapping()
-	if len(mapping) > 0 && !(account.IsOpenAI() && account.IsOpenAIPassthroughEnabled()) {
+	if len(mapping) > 0 && (!account.IsOpenAI() || !account.IsOpenAIPassthroughEnabled()) {
 		return modelsFromMapping(mapping, providerOrPlatformDefaultModels(provider, protocol))
 	}
 
@@ -120,7 +120,7 @@ func fetchCompatibleModelList(ctx context.Context, platform, baseURL, apiKey str
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil
 	}

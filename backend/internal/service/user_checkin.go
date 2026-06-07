@@ -189,17 +189,3 @@ func isSameLocalDay(left *time.Time, right time.Time) bool {
 	ry, rm, rd := right.In(time.Local).Date()
 	return ly == ry && lm == rm && ld == rd
 }
-
-func isPreviousLocalDay(left *time.Time, right time.Time) bool {
-	if left == nil || left.IsZero() {
-		return false
-	}
-	leftStart := startOfLocalDay(*left)
-	rightStart := startOfLocalDay(right)
-	return leftStart.AddDate(0, 0, 1).Equal(rightStart)
-}
-
-func startOfLocalDay(value time.Time) time.Time {
-	year, month, day := value.In(time.Local).Date()
-	return time.Date(year, month, day, 0, 0, 0, 0, time.Local)
-}
