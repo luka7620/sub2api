@@ -962,11 +962,17 @@ func (a *Account) IsAPIKeyOrBedrock() bool {
 }
 
 func (a *Account) IsOpenAI() bool {
-	return a.Platform == PlatformOpenAI
+	if a == nil {
+		return false
+	}
+	return IsOpenAIProtocolPlatform(a.Platform)
 }
 
 func (a *Account) IsAnthropic() bool {
-	return a.Platform == PlatformAnthropic
+	if a == nil {
+		return false
+	}
+	return IsAnthropicProtocolPlatform(a.Platform)
 }
 
 func (a *Account) IsOpenAIOAuth() bool {
@@ -1318,6 +1324,10 @@ func (a *Account) IsAnthropicAPIKeyPassthroughEnabled() bool {
 	}
 	enabled, ok := a.Extra["anthropic_passthrough"].(bool)
 	return ok && enabled
+}
+
+func (a *Account) IsGrok2APINativeMessagesPassthrough() bool {
+	return a != nil && a.Platform == PlatformGrok2API && a.Type == AccountTypeAPIKey
 }
 
 // WebSearch 模拟三态常量

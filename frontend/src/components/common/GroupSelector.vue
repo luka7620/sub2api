@@ -62,6 +62,7 @@ import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminGroup, GroupPlatform } from '@/types'
+import { protocolForPlatform } from '@/utils/upstreamProviders'
 
 const { t } = useI18n()
 
@@ -99,6 +100,12 @@ const filteredGroups = computed(() => {
     } else {
       // 默认：只能选择同 platform 的分组
       result = result.filter((g) => g.platform === props.platform)
+    }
+  }
+  if (props.platform) {
+    const protocol = protocolForPlatform(props.platform)
+    if (protocol !== props.platform) {
+      result = props.groups.filter((g) => g.platform === props.platform || g.platform === protocol)
     }
   }
   if (isSearchable.value && searchText.value) {

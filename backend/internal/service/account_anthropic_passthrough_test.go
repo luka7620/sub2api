@@ -60,3 +60,23 @@ func TestAccount_IsAnthropicAPIKeyPassthroughEnabled(t *testing.T) {
 		require.False(t, openai.IsAnthropicAPIKeyPassthroughEnabled())
 	})
 }
+
+func TestAccount_IsGrok2APINativeMessagesPassthrough(t *testing.T) {
+	require.True(t, (&Account{
+		Platform: PlatformGrok2API,
+		Type:     AccountTypeAPIKey,
+	}).IsGrok2APINativeMessagesPassthrough())
+
+	require.False(t, (&Account{
+		Platform: PlatformGrok2API,
+		Type:     AccountTypeOAuth,
+	}).IsGrok2APINativeMessagesPassthrough())
+
+	require.False(t, (&Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+	}).IsGrok2APINativeMessagesPassthrough())
+
+	var nilAccount *Account
+	require.False(t, nilAccount.IsGrok2APINativeMessagesPassthrough())
+}

@@ -1991,10 +1991,12 @@ export default {
       accountsUnit: '',
       rateAndAccounts: '{rate}x rate · {count} accounts',
       accountsCount: '{count} accounts',
+      providerHint: 'Platform is the request protocol; upstream provider controls display identity and model suggestions.',
       form: {
         name: 'Name',
         description: 'Description',
         platform: 'Platform',
+        provider: 'Upstream Provider',
         rateMultiplier: 'Rate Multiplier',
         status: 'Status',
         exclusive: 'Exclusive Group',
@@ -3113,6 +3115,13 @@ export default {
       deleteConfirm: "Are you sure you want to delete '{name}'? This action cannot be undone.",
       // Create/Edit Account Modal
       platform: 'Platform',
+      upstreamProvider: 'Upstream Provider',
+      upstreamProviderHint:
+        'Choose the visible upstream identity. Non-official providers still use the selected compatible protocol for routing.',
+      upstreamProviderOfficialDesc: 'Use the official platform endpoint',
+      upstreamProviderCompatibleDesc: '{protocol} compatible upstream',
+      upstreamProviderProtocol: 'Protocol: {protocol}',
+      upstreamProviderSelectHint: 'Changing this also switches the account to an API Key compatible account when needed.',
       accountName: 'Account Name',
       enterAccountName: 'Enter account name',
       accountType: 'Account Type',

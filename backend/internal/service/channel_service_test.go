@@ -1942,6 +1942,15 @@ func TestIsPlatformPricingMatch(t *testing.T) {
 		{"gemini matches gemini", PlatformGemini, PlatformGemini, true},
 		{"gemini does NOT match antigravity", PlatformGemini, PlatformAntigravity, false},
 		{"gemini does NOT match anthropic", PlatformGemini, PlatformAnthropic, false},
+		{"grok2api does NOT match grok2api pricing", PlatformGrok2API, PlatformGrok2API, false},
+		{"grok2api matches openai protocol pricing", PlatformGrok2API, PlatformOpenAI, true},
+		{"openai does NOT match grok2api", PlatformOpenAI, PlatformGrok2API, false},
+		{"windsurf does NOT match windsurf pricing", PlatformWindsurf, PlatformWindsurf, false},
+		{"windsurf matches openai protocol pricing", PlatformWindsurf, PlatformOpenAI, true},
+		{"windsurf does NOT match anthropic", PlatformWindsurf, PlatformAnthropic, false},
+		{"kiro does NOT match kiro pricing", PlatformKiro, PlatformKiro, false},
+		{"kiro matches anthropic protocol pricing", PlatformKiro, PlatformAnthropic, true},
+		{"anthropic does NOT match kiro", PlatformAnthropic, PlatformKiro, false},
 		{"empty string matches nothing", "", PlatformAnthropic, false},
 		{"empty string matches empty", "", "", true},
 	}
@@ -1954,8 +1963,31 @@ func TestIsPlatformPricingMatch(t *testing.T) {
 }
 
 // ===========================================================================
-// 8. matchingPlatforms
+// 8. matchingPricingPlatforms / matchingPlatforms
 // ===========================================================================
+
+func TestMatchingPricingPlatforms(t *testing.T) {
+	tests := []struct {
+		name          string
+		groupPlatform string
+		want          []string
+	}{
+		{"antigravity returns itself only", PlatformAntigravity, []string{PlatformAntigravity}},
+		{"anthropic returns itself", PlatformAnthropic, []string{PlatformAnthropic}},
+		{"gemini returns itself", PlatformGemini, []string{PlatformGemini}},
+		{"openai returns itself", PlatformOpenAI, []string{PlatformOpenAI}},
+		{"grok2api returns openai only", PlatformGrok2API, []string{PlatformOpenAI}},
+		{"windsurf returns openai only", PlatformWindsurf, []string{PlatformOpenAI}},
+		{"kiro returns anthropic only", PlatformKiro, []string{PlatformAnthropic}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := matchingPricingPlatforms(tt.groupPlatform)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
 
 func TestMatchingPlatforms(t *testing.T) {
 	tests := []struct {
@@ -1967,6 +1999,9 @@ func TestMatchingPlatforms(t *testing.T) {
 		{"anthropic returns itself", PlatformAnthropic, []string{PlatformAnthropic}},
 		{"gemini returns itself", PlatformGemini, []string{PlatformGemini}},
 		{"openai returns itself", PlatformOpenAI, []string{PlatformOpenAI}},
+		{"grok2api returns itself then openai", PlatformGrok2API, []string{PlatformGrok2API, PlatformOpenAI}},
+		{"windsurf returns itself then openai", PlatformWindsurf, []string{PlatformWindsurf, PlatformOpenAI}},
+		{"kiro returns itself then anthropic", PlatformKiro, []string{PlatformKiro, PlatformAnthropic}},
 	}
 
 	for _, tt := range tests {
@@ -1997,6 +2032,59 @@ func TestGetChannelModelPricing_AntigravityDoesNotSeeCrossPlatformPricing(t *tes
 
 	result := svc.GetChannelModelPricing(context.Background(), 10, "claude-opus-4-6")
 	require.Nil(t, result, "antigravity group should NOT see anthropic-platform pricing")
+}
+
+func TestGetChannelModelPricing_Grok2APIUsesOpenAIProtocolPricing(t *testing.T) {
+	ch := Channel{
+		ID:       1,
+		Status:   StatusActive,
+		GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{ID: 100, Platform: PlatformOpenAI, Models: []string{"gpt-5.4"}, InputPrice: testPtrFloat64(2.5e-6)},
+		},
+	}
+	repo := makeStandardRepo(ch, map[int64]string{10: PlatformGrok2API})
+	svc := newTestChannelService(repo)
+
+	result := svc.GetChannelModelPricing(context.Background(), 10, "gpt-5.4")
+	require.NotNil(t, result)
+	require.Equal(t, int64(100), result.ID)
+}
+
+func TestGetChannelModelPricing_KiroUsesAnthropicProtocolPricing(t *testing.T) {
+	ch := Channel{
+		ID:       1,
+		Status:   StatusActive,
+		GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{ID: 200, Platform: PlatformAnthropic, Models: []string{"claude-sonnet-4"}, InputPrice: testPtrFloat64(3e-6)},
+		},
+	}
+	repo := makeStandardRepo(ch, map[int64]string{10: PlatformKiro})
+	svc := newTestChannelService(repo)
+
+	result := svc.GetChannelModelPricing(context.Background(), 10, "claude-sonnet-4")
+	require.NotNil(t, result)
+	require.Equal(t, int64(200), result.ID)
+}
+
+func TestGetChannelModelPricing_ProtocolPricingBeatsAliasPlatformPricing(t *testing.T) {
+	ch := Channel{
+		ID:       1,
+		Status:   StatusActive,
+		GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{
+			{ID: 100, Platform: PlatformGrok2API, Models: []string{"gpt-5.4"}, InputPrice: testPtrFloat64(4e-6)},
+			{ID: 200, Platform: PlatformOpenAI, Models: []string{"gpt-5.4"}, InputPrice: testPtrFloat64(2.5e-6)},
+		},
+	}
+	repo := makeStandardRepo(ch, map[int64]string{10: PlatformGrok2API})
+	svc := newTestChannelService(repo)
+
+	result := svc.GetChannelModelPricing(context.Background(), 10, "gpt-5.4")
+	require.NotNil(t, result)
+	require.Equal(t, int64(200), result.ID)
+	require.InDelta(t, 2.5e-6, *result.InputPrice, 1e-12)
 }
 
 func TestGetChannelModelPricing_AnthropicCannotSeeAntigravityPricing(t *testing.T) {

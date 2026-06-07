@@ -70,6 +70,7 @@ type AdminService interface {
 	ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error)
 	GetAccount(ctx context.Context, id int64) (*Account, error)
 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
+	GetAccountAvailableModels(ctx context.Context, accountID int64) ([]AvailableModel, error)
 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
 	UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error)
 	DeleteAccount(ctx context.Context, id int64) error
@@ -187,6 +188,7 @@ type CreateGroupInput struct {
 	Name             string
 	Description      string
 	Platform         string
+	Provider         string
 	RateMultiplier   float64
 	IsExclusive      bool
 	SubscriptionType string   // standard/subscription
@@ -226,6 +228,7 @@ type UpdateGroupInput struct {
 	Name             string
 	Description      string
 	Platform         string
+	Provider         *string
 	RateMultiplier   *float64 // 使用指针以支持设置为0
 	IsExclusive      *bool
 	Status           string
@@ -266,6 +269,7 @@ type CreateAccountInput struct {
 	Name               string
 	Notes              *string
 	Platform           string
+	Provider           string
 	Type               string
 	Credentials        map[string]any
 	Extra              map[string]any
@@ -287,6 +291,7 @@ type CreateAccountInput struct {
 type UpdateAccountInput struct {
 	Name                  string
 	Notes                 *string
+	Provider              *string
 	Type                  string // Account type: oauth, setup-token, apikey
 	Credentials           map[string]any
 	Extra                 map[string]any
@@ -1609,6 +1614,13 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if platform == "" {
 		platform = PlatformAnthropic
 	}
+	if !IsSupportedPlatform(platform) {
+		return nil, fmt.Errorf("unsupported platform %q", platform)
+	}
+	provider, ok := NormalizeProviderForPlatform(input.Provider, platform)
+	if !ok {
+		return nil, fmt.Errorf("provider %q is not supported for platform %q", NormalizeProvider(input.Provider), platform)
+	}
 
 	subscriptionType := input.SubscriptionType
 	if subscriptionType == "" {
@@ -1691,6 +1703,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Name:                            input.Name,
 		Description:                     input.Description,
 		Platform:                        platform,
+		Provider:                        provider,
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		Status:                          StatusActive,
@@ -1852,7 +1865,24 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.Description = input.Description
 	}
 	if input.Platform != "" {
+		if !IsSupportedPlatform(input.Platform) {
+			return nil, fmt.Errorf("unsupported platform %q", input.Platform)
+		}
 		group.Platform = input.Platform
+	}
+	if input.Provider != nil {
+		provider, ok := NormalizeProviderForPlatform(*input.Provider, group.Platform)
+		if !ok {
+			return nil, fmt.Errorf("provider %q is not supported for platform %q", NormalizeProvider(*input.Provider), group.Platform)
+		}
+		group.Provider = provider
+	} else if group.Provider != "" {
+		provider, ok := NormalizeProviderForPlatform(group.Provider, group.Platform)
+		if !ok {
+			group.Provider = ""
+		} else {
+			group.Provider = provider
+		}
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier <= 0 {
@@ -2377,6 +2407,19 @@ func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	provider := input.Provider
+	if provider == "" {
+		provider = ProviderFromExtra(input.Extra)
+	}
+	requestedProvider := provider
+	provider, ok := NormalizeAccountProvider(provider, input.Platform, input.Type)
+	if !ok {
+		return nil, fmt.Errorf("provider %q is not supported for platform %q account type %q", NormalizeProvider(requestedProvider), input.Platform, input.Type)
+	}
+	if provider != "" || input.Extra != nil {
+		input.Extra = SetProviderInExtra(input.Extra, provider)
+	}
+
 	// 绑定分组
 	groupIDs := input.GroupIDs
 	// 如果没有指定分组,自动绑定对应平台的默认分组
@@ -2498,6 +2541,35 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if len(input.Credentials) > 0 {
 		account.Credentials = input.Credentials
+	}
+	if input.Provider != nil {
+		provider, ok := NormalizeAccountProvider(*input.Provider, account.Platform, account.Type)
+		if !ok {
+			return nil, fmt.Errorf("provider %q is not supported for platform %q account type %q", NormalizeProvider(*input.Provider), account.Platform, account.Type)
+		}
+		if input.Extra == nil {
+			input.Extra = cloneMapAny(account.Extra)
+		}
+		input.Extra = SetProviderInExtra(input.Extra, provider)
+	} else if input.Extra != nil {
+		if _, hasProvider := input.Extra[accountProviderExtraKey]; hasProvider {
+			provider := ProviderFromExtra(input.Extra)
+			provider, ok := NormalizeAccountProvider(provider, account.Platform, account.Type)
+			if !ok {
+				return nil, fmt.Errorf("provider %q is not supported for platform %q account type %q", ProviderFromExtra(input.Extra), account.Platform, account.Type)
+			}
+			input.Extra = SetProviderInExtra(input.Extra, provider)
+		} else if existingProvider := ProviderFromExtra(account.Extra); existingProvider != "" {
+			provider, ok := NormalizeAccountProvider(existingProvider, account.Platform, account.Type)
+			if !ok {
+				provider = ""
+			}
+			input.Extra = SetProviderInExtra(input.Extra, provider)
+		}
+	} else if existingProvider := ProviderFromExtra(account.Extra); existingProvider != "" {
+		if _, ok := NormalizeAccountProvider(existingProvider, account.Platform, account.Type); !ok {
+			input.Extra = SetProviderInExtra(cloneMapAny(account.Extra), "")
+		}
 	}
 	// Extra 使用 map：需要区分“未提供(nil)”与“显式清空({})”。
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。

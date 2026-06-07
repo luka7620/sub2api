@@ -96,22 +96,27 @@
             }}</span>
           </template>
 
-          <template #cell-platform="{ value }">
-            <span
-              :class="[
-                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
-                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                  : value === 'openai'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : value === 'antigravity'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-              ]"
-            >
-              <PlatformIcon :platform="value" size="xs" />
-              {{ t("admin.groups.platforms." + value) }}
-            </span>
+          <template #cell-platform="{ row, value }">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span
+                :class="[
+                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
+                  platformBadgeClass(value),
+                ]"
+              >
+                <PlatformIcon :platform="value" size="xs" />
+                {{ getPlatformLabel(value) }}
+              </span>
+              <span
+                v-if="row.provider"
+                :class="[
+                  'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                  getUpstreamProviderClasses(row.provider),
+                ]"
+              >
+                {{ getUpstreamProviderLabel(row.provider) }}
+              </span>
+            </div>
           </template>
 
           <template #cell-billing_type="{ row }">
@@ -392,9 +397,17 @@
             v-model="createForm.platform"
             :options="platformOptions"
             data-tour="group-form-platform"
-            @change="createForm.copy_accounts_from_group_ids = []"
+            @change="handleCreatePlatformChange"
           />
           <p class="input-hint">{{ t("admin.groups.platformHint") }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t("admin.groups.form.provider") }}</label>
+          <Select
+            v-model="createForm.provider"
+            :options="createProviderOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.providerHint") }}</p>
         </div>
         <!-- 从分组复制账号 -->
         <div v-if="copyAccountsGroupOptions.length > 0">
@@ -1577,6 +1590,14 @@
             data-tour="group-form-platform"
           />
           <p class="input-hint">{{ t("admin.groups.platformNotEditable") }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t("admin.groups.form.provider") }}</label>
+          <Select
+            v-model="editForm.provider"
+            :options="editProviderOptions"
+          />
+          <p class="input-hint">{{ t("admin.groups.providerHint") }}</p>
         </div>
         <!-- 从分组复制账号（编辑时） -->
         <div v-if="copyAccountsGroupOptionsForEdit.length > 0">
@@ -2839,7 +2860,7 @@ import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
-import type { AdminGroup, GroupPlatform, SubscriptionType } from "@/types";
+import type { AdminGroup, GroupPlatform, SubscriptionType, UpstreamProvider } from "@/types";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
@@ -2859,6 +2880,14 @@ import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
+  getPlatformLabel,
+  getUpstreamProviderClasses,
+  getUpstreamProviderLabel,
+  normalizeUpstreamProvider,
+  providerOptionsForPlatform,
+} from "@/utils/upstreamProviders";
+import { platformBadgeLightClass } from "@/utils/platformColors";
+import {
   createDefaultMessagesDispatchFormState,
   messagesDispatchConfigToFormState,
   messagesDispatchFormStateToConfig,
@@ -2869,6 +2898,8 @@ import {
 const { t } = useI18n();
 const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
+
+const platformBadgeClass = (platform: string) => platformBadgeLightClass(platform);
 
 const columns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
@@ -2925,6 +2956,9 @@ const platformOptions = computed(() => [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "grok2api", label: "Grok2API" },
+  { value: "windsurf", label: "WindsurfPool" },
+  { value: "kiro", label: "Kiro-Go" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -2933,7 +2967,18 @@ const platformFilterOptions = computed(() => [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "antigravity", label: "Antigravity" },
+  { value: "grok2api", label: "Grok2API" },
+  { value: "windsurf", label: "WindsurfPool" },
+  { value: "kiro", label: "Kiro-Go" },
 ]);
+
+const createProviderOptions = computed(() =>
+  providerOptionsForPlatform(createForm.platform),
+);
+
+const editProviderOptions = computed(() =>
+  providerOptionsForPlatform(editForm.platform),
+);
 
 const editStatusOptions = computed(() => [
   { value: "active", label: t("admin.accounts.status.active") },
@@ -3103,6 +3148,7 @@ const createForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  provider: "" as UpstreamProvider,
   rate_multiplier: 1.0,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
@@ -3186,6 +3232,21 @@ const getCreateRuleSearchKey = (rule: ModelRoutingRule) =>
   `create-${resolveCreateRuleKey(rule)}`;
 const getEditRuleSearchKey = (rule: ModelRoutingRule) =>
   `edit-${resolveEditRuleKey(rule)}`;
+
+const isProviderAllowedForPlatform = (
+  provider: string | null | undefined,
+  platform: GroupPlatform,
+) =>
+  providerOptionsForPlatform(platform).some(
+    (option) => option.value === normalizeUpstreamProvider(provider),
+  );
+
+const handleCreatePlatformChange = () => {
+  createForm.copy_accounts_from_group_ids = [];
+  if (!isProviderAllowedForPlatform(createForm.provider, createForm.platform)) {
+    createForm.provider = "";
+  }
+};
 
 const getRuleSearchKey = (rule: ModelRoutingRule, isEdit: boolean = false) => {
   return isEdit ? getEditRuleSearchKey(rule) : getCreateRuleSearchKey(rule);
@@ -3387,6 +3448,7 @@ const editForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
+  provider: "" as UpstreamProvider,
   rate_multiplier: 1.0,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
@@ -3635,6 +3697,7 @@ const closeCreateModal = () => {
   createForm.name = "";
   createForm.description = "";
   createForm.platform = "anthropic";
+  createForm.provider = "";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
@@ -3753,6 +3816,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.name = group.name;
   editForm.description = group.description || "";
   editForm.platform = group.platform;
+  editForm.provider = normalizeUpstreamProvider(group.provider);
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
@@ -3808,6 +3872,7 @@ const closeEditModal = () => {
   editingGroup.value = null;
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];
+  editForm.provider = "";
   resetMessagesDispatchFormState(editForm);
 };
 
@@ -3954,6 +4019,9 @@ watch(
       createForm.require_oauth_only = false;
       createForm.require_privacy_set = false;
     }
+    if (!isProviderAllowedForPlatform(createForm.provider, createForm.platform)) {
+      createForm.provider = "";
+    }
   },
 );
 
@@ -3969,6 +4037,9 @@ watch(
     if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
       editForm.require_oauth_only = false;
       editForm.require_privacy_set = false;
+    }
+    if (!isProviderAllowedForPlatform(editForm.provider, editForm.platform)) {
+      editForm.provider = "";
     }
   },
 );

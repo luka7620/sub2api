@@ -79,6 +79,11 @@ func TestDeriveUpstreamEndpoint(t *testing.T) {
 		{"openai from completions", EndpointChatCompletions, "/v1/chat/completions", service.PlatformOpenAI, EndpointResponses},
 		{"openai image generations", EndpointImagesGenerations, "/v1/images/generations", service.PlatformOpenAI, EndpointImagesGenerations},
 		{"openai image edits", EndpointImagesEdits, "/openai/v1/images/edits", service.PlatformOpenAI, EndpointImagesEdits},
+		{"grok2api native messages", EndpointMessages, "/v1/messages", service.PlatformGrok2API, EndpointMessages},
+		{"grok2api responses root", EndpointResponses, "/v1/responses", service.PlatformGrok2API, EndpointResponses},
+		{"grok2api responses compact", EndpointResponses, "/v1/responses/compact", service.PlatformGrok2API, "/v1/responses/compact"},
+		{"grok2api chat completions", EndpointChatCompletions, "/v1/chat/completions", service.PlatformGrok2API, EndpointResponses},
+		{"grok2api image generations", EndpointImagesGenerations, "/v1/images/generations", service.PlatformGrok2API, EndpointImagesGenerations},
 
 		// Antigravity — uses inbound to pick Claude vs Gemini upstream.
 		{"antigravity claude", EndpointMessages, "/antigravity/v1/messages", service.PlatformAntigravity, EndpointMessages},

@@ -23,6 +23,17 @@ const (
 	PlatformOpenAI      = "openai"
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
+	PlatformGrok2API    = "grok2api"
+	PlatformWindsurf    = "windsurf"
+	PlatformKiro        = "kiro"
+)
+
+// Provider constants describe the visible upstream identity while Platform keeps
+// the wire protocol and routing semantics.
+const (
+	ProviderGrok2API     = "grok2api"
+	ProviderWindsurfPool = "windsurf"
+	ProviderKiroGo       = "kiro"
 )
 
 // Account type constants

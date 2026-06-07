@@ -2016,6 +2016,7 @@ export default {
       columns: {
         name: '名称',
         platform: '平台',
+        provider: '上游来源',
         rateMultiplier: '费率倍数',
         rpmOverride: 'RPM 覆盖',
         rpmOverrideHint: '该用户在此分组的 RPM 上限；留空 = 使用分组默认；0 = 不限制',
@@ -2042,6 +2043,7 @@ export default {
       accountsRateLimited: '限流:',
       accountsTotal: '总量:',
       accountsUnit: '个账号',
+      providerHint: '平台是请求协议；上游来源用于显示身份和模型建议。',
       form: {
         name: '名称',
         description: '描述',
@@ -3261,6 +3263,12 @@ export default {
       failedToRefresh: '刷新 Cookie 失败',
       // Create/Edit Account Modal
       platform: '平台',
+      upstreamProvider: '上游来源',
+      upstreamProviderHint: '选择界面展示和模型识别使用的上游身份；请求仍按兼容协议路由。',
+      upstreamProviderOfficialDesc: '使用官方平台端点',
+      upstreamProviderCompatibleDesc: '{protocol} 兼容上游',
+      upstreamProviderProtocol: '协议：{protocol}',
+      upstreamProviderSelectHint: '选择非官方上游时，会自动切换为 API Key 兼容账号。',
       accountName: '账号名称',
       enterAccountName: '请输入账号名称',
       accountType: '账号类型',

@@ -19,6 +19,15 @@
   <svg v-else-if="platform === 'antigravity'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
   </svg>
+  <svg v-else-if="platform === 'grok2api'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M13.2 2 4 13.1h6.6L8.8 22 20 9.3h-6.9L13.2 2z" />
+  </svg>
+  <svg v-else-if="platform === 'windsurf'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 15.5c2.3-2.4 4.6-3.6 6.9-3.6 1.7 0 3 .5 4.1 1.1 1.1.5 2.1 1 3.4 1 1.2 0 2.4-.4 3.6-1.3v3.2c-1.3.8-2.6 1.2-4 1.2-1.7 0-3-.5-4.2-1.1-1.1-.5-2.1-1-3.4-1-1.9 0-4 1.1-6.4 3.5v-3zM3 8.1C5.3 5.7 7.6 4.5 9.9 4.5c1.7 0 3 .5 4.1 1.1 1.1.5 2.1 1 3.4 1 1.2 0 2.4-.4 3.6-1.3v3.2c-1.3.8-2.6 1.2-4 1.2-1.7 0-3-.5-4.2-1.1-1.1-.5-2.1-1-3.4-1C7.5 7.6 5.4 8.7 3 11.1v-3z" />
+  </svg>
+  <svg v-else-if="platform === 'kiro'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 3h4v7.2L15.7 3h4.8l-7.2 7.6L21 21h-4.9l-5.5-7.6L9 15v6H5V3z" />
+  </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">
     <path

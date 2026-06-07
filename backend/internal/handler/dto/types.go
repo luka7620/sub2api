@@ -86,6 +86,7 @@ type Group struct {
 	Name           string  `json:"name"`
 	Description    string  `json:"description"`
 	Platform       string  `json:"platform"`
+	Provider       string  `json:"provider"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 	IsExclusive    bool    `json:"is_exclusive"`
 	Status         string  `json:"status"`
@@ -155,6 +156,7 @@ type Account struct {
 	Name               string         `json:"name"`
 	Notes              *string        `json:"notes"`
 	Platform           string         `json:"platform"`
+	Provider           string         `json:"provider"`
 	Type               string         `json:"type"`
 	Credentials        map[string]any `json:"credentials"`
 	Extra              map[string]any `json:"extra"`

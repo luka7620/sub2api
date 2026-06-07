@@ -1157,7 +1157,7 @@ func TestOpenAIGatewayServiceRecordUsage_FallsBackToUpstreamModelWhenPrimaryUnpr
 	require.InDelta(t, expectedCost.ActualCost, userRepo.lastAmount, 1e-12)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_ReturnsErrorWhenTokenModelCannotBePriced(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_WritesZeroCostUsageWhenTokenModelCannotBePriced(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
@@ -1175,9 +1175,15 @@ func TestOpenAIGatewayServiceRecordUsage_ReturnsErrorWhenTokenModelCannotBePrice
 		Account: &Account{ID: 30},
 	})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "calculate OpenAI usage cost failed")
-	require.Equal(t, 0, usageRepo.calls)
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "resp_unpriceable_without_upstream", usageRepo.lastLog.RequestID)
+	require.Equal(t, "not-priceable-alias", usageRepo.lastLog.Model)
+	require.Equal(t, 20, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 10, usageRepo.lastLog.OutputTokens)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
 	require.Equal(t, 0, userRepo.deductCalls)
 	require.Equal(t, 0, subRepo.incrementCalls)
 }

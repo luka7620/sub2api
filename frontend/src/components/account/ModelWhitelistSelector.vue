@@ -120,12 +120,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { adminAPI } from '@/api/admin'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { allModels, getModelsByPlatform, getModelsByProvider } from '@/composables/useModelWhitelist'
 
 const { t } = useI18n()
 
@@ -133,6 +134,8 @@ const props = defineProps<{
   modelValue: string[]
   platform?: string
   platforms?: string[]
+  provider?: string
+  accountId?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -145,6 +148,7 @@ const showDropdown = ref(false)
 const searchQuery = ref('')
 const customModel = ref('')
 const isComposing = ref(false)
+const discoveredModels = ref<string[]>([])
 const normalizedPlatforms = computed(() => {
   const rawPlatforms =
     props.platforms && props.platforms.length > 0
@@ -162,19 +166,39 @@ const normalizedPlatforms = computed(() => {
   )
 })
 
-const availableOptions = computed(() => {
-  if (normalizedPlatforms.value.length === 0) {
-    return allModels
+const fallbackModelIDs = computed(() => {
+  const allowedModels = new Set<string>()
+
+  for (const model of getModelsByProvider(props.provider)) {
+    allowedModels.add(model)
   }
 
-  const allowedModels = new Set<string>()
+  if (normalizedPlatforms.value.length === 0) {
+    return Array.from(allowedModels)
+  }
+
   for (const platform of normalizedPlatforms.value) {
     for (const model of getModelsByPlatform(platform)) {
       allowedModels.add(model)
     }
   }
 
-  return allModels.filter(model => allowedModels.has(model.value))
+  return Array.from(allowedModels)
+})
+
+const availableOptions = computed(() => {
+  const allowedModels = new Set(discoveredModels.value.length > 0 ? discoveredModels.value : fallbackModelIDs.value)
+  if (allowedModels.size === 0) {
+    return allModels
+  }
+
+  const known = allModels.filter(model => allowedModels.has(model.value))
+  const knownValues = new Set(known.map(model => model.value))
+  const custom = Array.from(allowedModels)
+    .filter(model => !knownValues.has(model))
+    .sort()
+    .map(model => ({ value: model, label: model }))
+  return [...known, ...custom]
 })
 
 const filteredModels = computed(() => {
@@ -219,11 +243,10 @@ const handleEnter = () => {
 
 const fillRelated = () => {
   const newModels = [...props.modelValue]
-  for (const platform of normalizedPlatforms.value) {
-    for (const model of getModelsByPlatform(platform)) {
-      if (!newModels.includes(model)) {
-        newModels.push(model)
-      }
+  const models = discoveredModels.value.length > 0 ? discoveredModels.value : fallbackModelIDs.value
+  for (const model of models) {
+    if (!newModels.includes(model)) {
+      newModels.push(model)
     }
   }
   emit('update:modelValue', newModels)
@@ -232,5 +255,24 @@ const fillRelated = () => {
 const clearAll = () => {
   emit('update:modelValue', [])
 }
+
+watch(
+  () => props.accountId,
+  async (accountId) => {
+    discoveredModels.value = []
+    if (!accountId) {
+      return
+    }
+    try {
+      const models = await adminAPI.accounts.getAvailableModels(accountId)
+      discoveredModels.value = models
+        .map(model => model.id)
+        .filter((model): model is string => Boolean(model))
+    } catch {
+      discoveredModels.value = []
+    }
+  },
+  { immediate: true }
+)
 
 </script>

@@ -317,6 +317,22 @@ func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.A
 	return &account, nil
 }
 
+func (s *stubAdminService) GetAccountAvailableModels(ctx context.Context, accountID int64) ([]service.AvailableModel, error) {
+	account, err := s.GetAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	modelMapping := account.GetModelMapping()
+	if len(modelMapping) > 0 && !(account.IsOpenAI() && account.IsOpenAIPassthroughEnabled()) {
+		out := make([]service.AvailableModel, 0, len(modelMapping))
+		for model := range modelMapping {
+			out = append(out, service.AvailableModel{ID: model, Type: "model", DisplayName: model})
+		}
+		return out, nil
+	}
+	return []service.AvailableModel{{ID: "default-model", Type: "model", DisplayName: "default-model"}}, nil
+}
+
 func (s *stubAdminService) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
 	out := make([]*service.Account, 0, len(ids))
 	for _, id := range ids {

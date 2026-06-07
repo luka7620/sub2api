@@ -47,6 +47,25 @@ func newAnthropicAPIKeyAccountForTest() *Account {
 	}
 }
 
+func newGrok2APINativeMessagesAccountForTest(baseURL string) *Account {
+	return &Account{
+		ID:          301,
+		Name:        "grok2api-native-messages-pass-test",
+		Platform:    PlatformGrok2API,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "upstream-grok2api-key",
+			"base_url": baseURL,
+			"model_mapping": map[string]any{
+				"claude-sonnet-4-5": "grok-4.20-multi-agent-xhigh",
+			},
+		},
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+}
+
 func (u *anthropicHTTPUpstreamRecorder) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	u.lastReq = req
 	if req != nil && req.Body != nil {
@@ -95,6 +114,110 @@ func (w *failWriteResponseWriter) Write(data []byte) (int, error) {
 
 func (w *failWriteResponseWriter) WriteString(_ string) (int, error) {
 	return 0, errors.New("client disconnected")
+}
+
+func TestBuildNativeMessagesURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		base        string
+		includeBeta bool
+		want        string
+	}{
+		{
+			name:        "root base without beta",
+			base:        "https://grok.example",
+			includeBeta: false,
+			want:        "https://grok.example/v1/messages",
+		},
+		{
+			name:        "v1 base without beta",
+			base:        "https://grok.example/v1",
+			includeBeta: false,
+			want:        "https://grok.example/v1/messages",
+		},
+		{
+			name:        "messages endpoint without beta",
+			base:        "https://grok.example/v1/messages",
+			includeBeta: false,
+			want:        "https://grok.example/v1/messages",
+		},
+		{
+			name:        "nested base without beta",
+			base:        "https://grok.example/api",
+			includeBeta: false,
+			want:        "https://grok.example/api/v1/messages",
+		},
+		{
+			name:        "anthropic v1 base includes beta",
+			base:        "https://api.anthropic.com/v1",
+			includeBeta: true,
+			want:        "https://api.anthropic.com/v1/messages?beta=true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, buildNativeMessagesURL(tt.base, tt.includeBeta))
+		})
+	}
+}
+
+func TestGatewayService_Grok2APINativeMessagesPassthrough_ForwardNonStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("Authorization", "Bearer inbound-token")
+	c.Request.Header.Set("X-Api-Key", "inbound-api-key")
+	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
+
+	body := []byte(`{"model":"claude-sonnet-4-5","stream":false,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
+	parsed := &ParsedRequest{
+		Body:   body,
+		Model:  "claude-sonnet-4-5",
+		Stream: false,
+	}
+
+	upstreamJSON := `{"id":"msg_grok","type":"message","model":"grok-4.20-multi-agent-xhigh","usage":{"input_tokens":10,"output_tokens":6},"content":[{"type":"text","text":"ok"}]}`
+	upstream := &anthropicHTTPUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"x-request-id": []string{"rid-grok2api-native"},
+			},
+			Body: io.NopCloser(strings.NewReader(upstreamJSON)),
+		},
+	}
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, newGrok2APINativeMessagesAccountForTest("https://grok.example/v1"), parsed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.Stream)
+	require.Equal(t, "claude-sonnet-4-5", result.Model)
+	require.Equal(t, "grok-4.20-multi-agent-xhigh", result.UpstreamModel)
+	require.Equal(t, 10, result.Usage.InputTokens)
+	require.Equal(t, 6, result.Usage.OutputTokens)
+
+	require.Equal(t, "https", upstream.lastReq.URL.Scheme)
+	require.Equal(t, "grok.example", upstream.lastReq.URL.Host)
+	require.Equal(t, "/v1/messages", upstream.lastReq.URL.Path)
+	require.Empty(t, upstream.lastReq.URL.RawQuery)
+	require.Equal(t, "grok-4.20-multi-agent-xhigh", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "upstream-grok2api-key", getHeaderRaw(upstream.lastReq.Header, "x-api-key"))
+	require.Empty(t, getHeaderRaw(upstream.lastReq.Header, "authorization"))
+	require.Empty(t, getHeaderRaw(upstream.lastReq.Header, "x-goog-api-key"))
+	require.Equal(t, "interleaved-thinking-2025-05-14", getHeaderRaw(upstream.lastReq.Header, "anthropic-beta"))
+	require.JSONEq(t, upstreamJSON, rec.Body.String())
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAndAuthReplacement(t *testing.T) {
@@ -660,6 +783,32 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBas
 
 	_, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{}`), "k")
 	require.Error(t, err)
+}
+
+func TestGatewayService_Grok2APINativeMessagesPassthrough_RequiresBaseURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+	}
+	account := &Account{
+		Platform: PlatformGrok2API,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "k",
+		},
+	}
+
+	_, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{}`), "k")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requires base_url")
 }
 
 func TestGatewayService_AnthropicOAuth_NotAffectedByAPIKeyPassthroughToggle(t *testing.T) {

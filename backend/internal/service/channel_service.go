@@ -203,8 +203,9 @@ func newEmptyChannelCache() *channelCache {
 }
 
 // expandPricingToCache 将渠道的模型定价展开到缓存（按分组+平台维度）。
-// 各平台严格独立：antigravity 分组只匹配 antigravity 定价，不会匹配 anthropic/gemini 的定价。
-// 查找时通过 lookupPricingAcrossPlatforms() 在本平台内查找。
+// 原生平台严格独立；协议别名平台复用协议平台定价：
+// grok2api/windsurf -> openai，kiro -> anthropic。
+// 查找时通过 lookupPricingAcrossPlatforms() 在计费平台内查找。
 func expandPricingToCache(cache *channelCache, ch *Channel, gid int64, platform string) {
 	for j := range ch.ModelPricing {
 		pricing := &ch.ModelPricing[j]
@@ -332,15 +333,32 @@ func populateChannelCache(channels []Channel, groupPlatforms map[int64]string) *
 // invalidateCache 使缓存失效，让下次读取时自然重建
 
 // isPlatformPricingMatch 判断定价条目的平台是否匹配分组平台。
-// 各平台（antigravity / anthropic / gemini / openai）严格独立，不跨平台匹配。
+// 协议别名平台只复用协议平台定价；自身平台价格不参与计费，倍率由分组配置承担。
 func isPlatformPricingMatch(groupPlatform, pricingPlatform string) bool {
-	return groupPlatform == pricingPlatform
+	for _, candidate := range matchingPricingPlatforms(groupPlatform) {
+		if candidate == pricingPlatform {
+			return true
+		}
+	}
+	return false
 }
 
-// matchingPlatforms 返回分组平台对应的可匹配平台列表。
-// 各平台严格独立，只返回自身。
+// matchingPricingPlatforms 返回分组平台对应的计费平台列表。
+func matchingPricingPlatforms(groupPlatform string) []string {
+	protocol := PlatformProtocol(groupPlatform)
+	if protocol == "" || protocol == groupPlatform {
+		return []string{groupPlatform}
+	}
+	return []string{protocol}
+}
+
+// matchingPlatforms 返回分组平台对应的可匹配平台列表，顺序即匹配优先级。
 func matchingPlatforms(groupPlatform string) []string {
-	return []string{groupPlatform}
+	protocol := PlatformProtocol(groupPlatform)
+	if protocol == "" || protocol == groupPlatform {
+		return []string{groupPlatform}
+	}
+	return []string{groupPlatform, protocol}
 }
 func (s *ChannelService) invalidateCache() {
 	s.cache.Store((*channelCache)(nil))
@@ -376,17 +394,17 @@ func (c *channelCache) matchWildcardMapping(groupID int64, platform, modelLower 
 	return ""
 }
 
-// lookupPricingAcrossPlatforms 在分组平台内查找模型定价。
-// 各平台严格独立，只在本平台内查找（先精确匹配，再通配符）。
+// lookupPricingAcrossPlatforms 在分组的计费平台内查找模型定价。
+// 原生平台只查自身；协议别名平台只查协议平台（先精确匹配，再通配符）。
 func lookupPricingAcrossPlatforms(cache *channelCache, groupID int64, groupPlatform, modelLower string) *ChannelModelPricing {
-	for _, p := range matchingPlatforms(groupPlatform) {
+	for _, p := range matchingPricingPlatforms(groupPlatform) {
 		key := channelModelKey{groupID: groupID, platform: p, model: modelLower}
 		if pricing, ok := cache.pricingByGroupModel[key]; ok {
 			return pricing
 		}
 	}
 	// 精确查找全部失败，依次尝试通配符匹配
-	for _, p := range matchingPlatforms(groupPlatform) {
+	for _, p := range matchingPricingPlatforms(groupPlatform) {
 		if pricing := cache.matchWildcard(groupID, p, modelLower); pricing != nil {
 			return pricing
 		}

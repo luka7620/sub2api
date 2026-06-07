@@ -77,6 +77,36 @@ func TestGatewayHandlerSubmitUsageRecordTask_WithoutPool_TaskPanicRecovered(t *t
 	require.True(t, called.Load(), "panic 后后续任务应仍可执行")
 }
 
+func TestGatewayHandlerSubmitUsageRecordTask_DroppedTaskSyncFallback(t *testing.T) {
+	pool := service.NewUsageRecordWorkerPoolWithOptions(service.UsageRecordWorkerPoolOptions{
+		WorkerCount:           1,
+		QueueSize:             1,
+		TaskTimeout:           time.Second,
+		OverflowPolicy:        "drop",
+		OverflowSamplePercent: 0,
+		AutoScaleEnabled:      false,
+	})
+	t.Cleanup(pool.Stop)
+	h := &GatewayHandler{usageRecordWorkerPool: pool}
+
+	block := make(chan struct{})
+	release := make(chan struct{})
+	pool.Submit(func(ctx context.Context) {
+		close(block)
+		<-release
+	})
+	<-block
+	pool.Submit(func(ctx context.Context) {})
+
+	var called atomic.Bool
+	h.submitUsageRecordTask(func(ctx context.Context) {
+		called.Store(true)
+	})
+	close(release)
+
+	require.True(t, called.Load(), "usage task must run synchronously when async submit is dropped")
+}
+
 func TestOpenAIGatewayHandlerSubmitUsageRecordTask_WithPool(t *testing.T) {
 	pool := newUsageRecordTestPool(t)
 	h := &OpenAIGatewayHandler{usageRecordWorkerPool: pool}
@@ -130,7 +160,7 @@ func TestOpenAIGatewayHandlerSubmitUsageRecordTask_WithoutPool_TaskPanicRecovere
 	require.True(t, called.Load(), "panic 后后续任务应仍可执行")
 }
 
-func TestOpenAIGatewayHandlerSubmitMandatoryUsageRecordTask_DroppedTaskSyncFallback(t *testing.T) {
+func TestOpenAIGatewayHandlerSubmitUsageRecordTask_DroppedTaskSyncFallback(t *testing.T) {
 	pool := service.NewUsageRecordWorkerPoolWithOptions(service.UsageRecordWorkerPoolOptions{
 		WorkerCount:           1,
 		QueueSize:             1,
@@ -152,15 +182,15 @@ func TestOpenAIGatewayHandlerSubmitMandatoryUsageRecordTask_DroppedTaskSyncFallb
 	pool.Submit(func(ctx context.Context) {})
 
 	var called atomic.Bool
-	h.submitMandatoryUsageRecordTask(func(ctx context.Context) {
+	h.submitUsageRecordTask(func(ctx context.Context) {
 		called.Store(true)
 	})
 	close(release)
 
-	require.True(t, called.Load(), "mandatory usage task must run synchronously when async submit is dropped")
+	require.True(t, called.Load(), "usage task must run synchronously when async submit is dropped")
 }
 
-func TestOpenAIGatewayHandlerSubmitOpenAIUsageRecordTask_ImageResultUsesMandatoryFallback(t *testing.T) {
+func TestOpenAIGatewayHandlerSubmitOpenAIUsageRecordTask_DroppedTaskSyncFallback(t *testing.T) {
 	pool := service.NewUsageRecordWorkerPoolWithOptions(service.UsageRecordWorkerPoolOptions{
 		WorkerCount:           1,
 		QueueSize:             1,
@@ -187,5 +217,5 @@ func TestOpenAIGatewayHandlerSubmitOpenAIUsageRecordTask_ImageResultUsesMandator
 	})
 	close(release)
 
-	require.True(t, called.Load(), "image usage task must be mandatory when async submit is dropped")
+	require.True(t, called.Load(), "OpenAI usage task must run synchronously when async submit is dropped")
 }

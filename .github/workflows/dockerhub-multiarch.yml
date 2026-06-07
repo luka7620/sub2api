@@ -1,0 +1,187 @@
+name: DockerHub Multi-Arch
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerhub-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: sub2api
+
+jobs:
+  prepare:
+    name: Prepare Docker tags
+    runs-on: ubuntu-latest
+    outputs:
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      ref_tag: ${{ steps.meta.outputs.ref_tag }}
+      publish_latest: ${{ steps.meta.outputs.publish_latest }}
+      version: ${{ steps.meta.outputs.version }}
+      date: ${{ steps.meta.outputs.date }}
+    steps:
+      - name: Check DockerHub secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "Set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets before running this workflow." >&2
+            exit 1
+          fi
+
+      - name: Prepare metadata
+        id: meta
+        run: |
+          set -euo pipefail
+
+          sha_tag="sha-${GITHUB_SHA::12}"
+          ref_tag=""
+          publish_latest="false"
+          version="$sha_tag"
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            ref_tag="$GITHUB_REF_NAME"
+            version="$GITHUB_REF_NAME"
+          else
+            branch_slug="$(printf '%s' "$GITHUB_REF_NAME" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//' \
+              | cut -c1-120)"
+
+            if [ -z "$branch_slug" ]; then
+              branch_slug="branch"
+            fi
+
+            ref_tag="branch-${branch_slug}"
+
+            if [ "$GITHUB_REF_NAME" = "${{ github.event.repository.default_branch }}" ] || \
+               [ "$GITHUB_REF_NAME" = "main" ] || \
+               [ "$GITHUB_REF_NAME" = "master" ]; then
+              publish_latest="true"
+            fi
+          fi
+
+          date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          echo "sha_tag=$sha_tag" >> "$GITHUB_OUTPUT"
+          echo "ref_tag=$ref_tag" >> "$GITHUB_OUTPUT"
+          echo "publish_latest=$publish_latest" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push ${{ matrix.arch }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            emulation: false
+          - platform: linux/arm64
+            arch: arm64
+            emulation: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: ${{ matrix.emulation == true }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push architecture image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.sha_tag }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ needs.prepare.outputs.date }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ needs.prepare.outputs.date }}
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,scope=docker-${{ matrix.arch }},mode=max
+
+  merge:
+    name: Merge multi-arch manifests
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create multi-arch tags
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          SHA_TAG: ${{ needs.prepare.outputs.sha_tag }}
+          REF_TAG: ${{ needs.prepare.outputs.ref_tag }}
+          PUBLISH_LATEST: ${{ needs.prepare.outputs.publish_latest }}
+        run: |
+          set -euo pipefail
+
+          amd64_ref="${IMAGE}:${SHA_TAG}-amd64"
+          arm64_ref="${IMAGE}:${SHA_TAG}-arm64"
+
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${SHA_TAG}" \
+            "$amd64_ref" \
+            "$arm64_ref"
+
+          if [ -n "$REF_TAG" ]; then
+            docker buildx imagetools create \
+              --tag "${IMAGE}:${REF_TAG}" \
+              "$amd64_ref" \
+              "$arm64_ref"
+          fi
+
+          if [ "$PUBLISH_LATEST" = "true" ]; then
+            docker buildx imagetools create \
+              --tag "${IMAGE}:latest" \
+              "$amd64_ref" \
+              "$arm64_ref"
+          fi
+
+      - name: Inspect merged image
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          SHA_TAG: ${{ needs.prepare.outputs.sha_tag }}
+        run: docker buildx imagetools inspect "${IMAGE}:${SHA_TAG}"

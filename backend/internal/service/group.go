@@ -14,6 +14,7 @@ type Group struct {
 	Name           string
 	Description    string
 	Platform       string
+	Provider       string
 	RateMultiplier float64
 	IsExclusive    bool
 	Status         string

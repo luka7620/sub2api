@@ -31,6 +31,11 @@
       </span>
     </div>
     <!-- Row 2: Plan type + Privacy mode (only if either exists) -->
+    <div v-if="provider" class="inline-flex items-center overflow-hidden rounded-md">
+      <span :class="['inline-flex items-center gap-1 px-1.5 py-1', providerClass]">
+        <span>{{ providerLabel }}</span>
+      </span>
+    </div>
     <div v-if="planLabel || privacyBadge" class="inline-flex items-center overflow-hidden rounded-md">
       <span v-if="planLabel" :class="['inline-flex items-center gap-1 px-1.5 py-1', planBadgeClass]">
         <span>{{ planLabel }}</span>
@@ -57,6 +62,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountPlatform, AccountType } from '@/types'
+import { getPlatformLabel, getUpstreamProviderClasses, getUpstreamProviderLabel, normalizeUpstreamProvider } from '@/utils/upstreamProviders'
 import PlatformIcon from './PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -66,6 +72,7 @@ interface Props {
   platform: AccountPlatform
   type: AccountType
   planType?: string
+  provider?: string
   privacyMode?: string
   subscriptionExpiresAt?: string
 }
@@ -73,11 +80,12 @@ interface Props {
 const props = defineProps<Props>()
 
 const platformLabel = computed(() => {
-  if (props.platform === 'anthropic') return 'Anthropic'
-  if (props.platform === 'openai') return 'OpenAI'
-  if (props.platform === 'antigravity') return 'Antigravity'
-  return 'Gemini'
+  return getPlatformLabel(props.platform)
 })
+
+const provider = computed(() => normalizeUpstreamProvider(props.provider))
+const providerLabel = computed(() => getUpstreamProviderLabel(provider.value))
+const providerClass = computed(() => getUpstreamProviderClasses(provider.value))
 
 const typeLabel = computed(() => {
   switch (props.type) {
@@ -126,6 +134,15 @@ const platformClass = computed(() => {
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
   }
+  if (props.platform === 'grok2api') {
+    return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+  }
+  if (props.platform === 'windsurf') {
+    return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+  }
+  if (props.platform === 'kiro') {
+    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+  }
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
 })
 
@@ -138,6 +155,15 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+  }
+  if (props.platform === 'grok2api') {
+    return 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
+  }
+  if (props.platform === 'windsurf') {
+    return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400'
+  }
+  if (props.platform === 'kiro') {
+    return 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400'
   }
   return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
 })

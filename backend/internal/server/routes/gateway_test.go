@@ -77,3 +77,39 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
 	}
 }
+
+func TestGatewayRoutesOpenAIChatCompletionsCompactPathIsRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+
+	for _, path := range []string{
+		"/v1/chat/completions",
+		"/chat/completions",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-5","messages":[{"role":"user","content":"hi"}]}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI chat completions handler", path)
+	}
+}
+
+func TestUseOpenAIMessagesGateway(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		want     bool
+	}{
+		{"openai", service.PlatformOpenAI, true},
+		{"windsurf", service.PlatformWindsurf, true},
+		{"grok2api", service.PlatformGrok2API, false},
+		{"anthropic", service.PlatformAnthropic, false},
+		{"kiro", service.PlatformKiro, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, useOpenAIMessagesGateway(tt.platform))
+		})
+	}
+}

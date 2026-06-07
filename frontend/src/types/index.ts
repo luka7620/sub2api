@@ -484,7 +484,8 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok2api' | 'windsurf' | 'kiro'
+export type UpstreamProvider = '' | 'grok2api' | 'windsurf' | 'kiro' | string
 
 export type SubscriptionType = 'standard' | 'subscription'
 
@@ -500,6 +501,7 @@ export interface Group {
   name: string
   description: string | null
   platform: GroupPlatform
+  provider?: UpstreamProvider
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
@@ -615,6 +617,7 @@ export interface CreateGroupRequest {
   name: string
   description?: string | null
   platform?: GroupPlatform
+  provider?: UpstreamProvider
   rate_multiplier?: number
   is_exclusive?: boolean
   subscription_type?: SubscriptionType
@@ -642,6 +645,7 @@ export interface UpdateGroupRequest {
   name?: string
   description?: string | null
   platform?: GroupPlatform
+  provider?: UpstreamProvider
   rate_multiplier?: number
   is_exclusive?: boolean
   status?: 'active' | 'inactive'
@@ -667,7 +671,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok2api' | 'windsurf' | 'kiro'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
@@ -795,6 +799,7 @@ export interface Account {
   name: string
   notes?: string | null
   platform: AccountPlatform
+  provider?: UpstreamProvider
   type: AccountType
   credentials?: Record<string, unknown>
   // Extra fields including Codex usage, OpenAI compact capability, and model-level rate limits.
@@ -984,6 +989,7 @@ export interface CreateAccountRequest {
   name: string
   notes?: string | null
   platform: AccountPlatform
+  provider?: UpstreamProvider
   type: AccountType
   credentials: Record<string, unknown>
   extra?: Record<string, unknown>
@@ -1001,6 +1007,7 @@ export interface CreateAccountRequest {
 export interface UpdateAccountRequest {
   name?: string
   notes?: string | null
+  provider?: UpstreamProvider
   type?: AccountType
   credentials?: Record<string, unknown>
   extra?: Record<string, unknown>

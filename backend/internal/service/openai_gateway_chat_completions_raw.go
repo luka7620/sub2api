@@ -220,7 +220,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 
 	// 8. Forward response
 	if clientStream {
-		return s.streamRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamRawChatCompletions(c, resp, body, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
 	return s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
@@ -234,6 +234,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 func (s *OpenAIGatewayService) streamRawChatCompletions(
 	c *gin.Context,
 	resp *http.Response,
+	requestBody []byte,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -260,6 +261,9 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
 	var usage OpenAIUsage
+	usageParsed := false
+	promptTokenEstimate := estimateOpenAIChatPromptTokens(requestBody)
+	completionTokenEstimate := 0
 	var firstTokenMs *int
 	clientDisconnected := false
 
@@ -271,7 +275,9 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
+					usageParsed = true
 				}
+				completionTokenEstimate += estimateOpenAIChatStreamDeltaTokens(payload)
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed
@@ -304,6 +310,17 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			logger.L().Warn("openai chat_completions raw: stream read error",
 				zap.Error(err),
 				zap.String("request_id", requestID),
+			)
+		}
+	}
+	if !usageParsed {
+		usage = estimateMissingOpenAIChatStreamUsage(promptTokenEstimate, completionTokenEstimate)
+		if usage.InputTokens > 0 || usage.OutputTokens > 0 {
+			logger.L().Warn("openai chat_completions raw: upstream stream missing usage, using estimated tokens for billing",
+				zap.String("request_id", requestID),
+				zap.String("model", originalModel),
+				zap.Int("estimated_input_tokens", usage.InputTokens),
+				zap.Int("estimated_output_tokens", usage.OutputTokens),
 			)
 		}
 	}
@@ -359,6 +376,128 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 		u.CacheReadInputTokens = int(cached.Int())
 	}
 	return &u
+}
+
+func estimateMissingOpenAIChatStreamUsage(inputEstimate, outputEstimate int) OpenAIUsage {
+	if inputEstimate < 0 {
+		inputEstimate = 0
+	}
+	if outputEstimate < 0 {
+		outputEstimate = 0
+	}
+	if inputEstimate == 0 && outputEstimate == 0 {
+		return OpenAIUsage{}
+	}
+	if inputEstimate == 0 {
+		inputEstimate = 1
+	}
+	if outputEstimate == 0 {
+		outputEstimate = 1
+	}
+	return OpenAIUsage{
+		InputTokens:  inputEstimate,
+		OutputTokens: outputEstimate,
+	}
+}
+
+func estimateOpenAIChatPromptTokens(body []byte) int {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return estimateOpenAITextTokens(string(body))
+	}
+	messages := gjson.GetBytes(body, "messages")
+	if !messages.Exists() || !messages.IsArray() {
+		return estimateOpenAITextTokens(string(body))
+	}
+	total := 0
+	for _, msg := range messages.Array() {
+		total += 4
+		if role := msg.Get("role").String(); role != "" {
+			total += estimateOpenAITextTokens(role)
+		}
+		if name := msg.Get("name").String(); name != "" {
+			total += estimateOpenAITextTokens(name)
+		}
+		total += estimateOpenAIChatContentTokens(msg.Get("content"))
+		total += estimateOpenAIChatContentTokens(msg.Get("reasoning_content"))
+		if toolCallID := msg.Get("tool_call_id").String(); toolCallID != "" {
+			total += estimateOpenAITextTokens(toolCallID)
+		}
+		if toolCalls := msg.Get("tool_calls"); toolCalls.Exists() {
+			total += estimateOpenAITextTokens(toolCalls.Raw)
+		}
+		if functionCall := msg.Get("function_call"); functionCall.Exists() {
+			total += estimateOpenAITextTokens(functionCall.Raw)
+		}
+	}
+	if tools := gjson.GetBytes(body, "tools"); tools.Exists() {
+		total += estimateOpenAITextTokens(tools.Raw)
+	}
+	if total == 0 {
+		total = estimateOpenAITextTokens(string(body))
+	}
+	return total
+}
+
+func estimateOpenAIChatContentTokens(value gjson.Result) int {
+	if !value.Exists() {
+		return 0
+	}
+	if value.Type == gjson.String {
+		return estimateOpenAITextTokens(value.String())
+	}
+	if value.IsArray() {
+		total := 0
+		for _, part := range value.Array() {
+			switch part.Get("type").String() {
+			case "text", "input_text":
+				total += estimateOpenAITextTokens(part.Get("text").String())
+			case "image_url":
+				total += 85 + estimateOpenAITextTokens(part.Get("image_url.url").String())
+			default:
+				total += estimateOpenAITextTokens(part.Raw)
+			}
+		}
+		return total
+	}
+	return estimateOpenAITextTokens(value.Raw)
+}
+
+func estimateOpenAIChatStreamDeltaTokens(payload string) int {
+	choices := gjson.Get(payload, "choices")
+	if !choices.Exists() || !choices.IsArray() {
+		return 0
+	}
+	total := 0
+	for _, choice := range choices.Array() {
+		delta := choice.Get("delta")
+		total += estimateOpenAITextTokens(delta.Get("content").String())
+		total += estimateOpenAITextTokens(delta.Get("reasoning_content").String())
+		if toolCalls := delta.Get("tool_calls"); toolCalls.Exists() {
+			total += estimateOpenAITextTokens(toolCalls.Raw)
+		}
+		if functionCall := delta.Get("function_call"); functionCall.Exists() {
+			total += estimateOpenAITextTokens(functionCall.Raw)
+		}
+	}
+	return total
+}
+
+func estimateOpenAITextTokens(text string) int {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	asciiChars := 0
+	nonASCIIChars := 0
+	for _, r := range text {
+		if r <= 127 {
+			asciiChars++
+		} else {
+			nonASCIIChars++
+		}
+	}
+	asciiTokens := (asciiChars + 3) / 4
+	return asciiTokens + nonASCIIChars
 }
 
 // bufferRawChatCompletions 透传上游 CC 非流式 JSON 响应。

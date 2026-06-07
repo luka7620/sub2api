@@ -489,7 +489,10 @@ const platformOptions = [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'gemini', label: 'Gemini' },
-  { value: 'antigravity', label: 'Antigravity' }
+  { value: 'antigravity', label: 'Antigravity' },
+  { value: 'grok2api', label: 'Grok2API' },
+  { value: 'windsurf', label: 'WindsurfPool' },
+  { value: 'kiro', label: 'Kiro-Go' }
 ]
 
 // Load rules when dialog opens

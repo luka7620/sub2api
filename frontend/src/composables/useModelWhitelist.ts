@@ -350,6 +350,25 @@ export const commonErrorCodes = [
 export function getModelsByPlatform(platform: string): string[] {
   switch (platform) {
     case 'openai': return openaiModels
+    case 'grok2api': return xaiModels
+    case 'windsurf':
+      return [
+        'claude-sonnet-4-5',
+        'claude-opus-4-5',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+        'gpt-5.4',
+        'gpt-5.4-mini',
+        'gpt-5.3-codex'
+      ]
+    case 'kiro':
+      return [
+        'claude-sonnet-4-5',
+        'claude-haiku-4-5',
+        'claude-opus-4-5',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash'
+      ]
     case 'anthropic':
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
@@ -370,6 +389,39 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'hunyuan': return hunyuanModels
     case 'perplexity': return perplexityModels
     default: return claudeModels
+  }
+}
+
+export function getModelsByProvider(provider?: string | null): string[] {
+  switch ((provider || '').trim().toLowerCase()) {
+    case 'grok2api':
+    case 'grok-2-api':
+    case 'grok2-api':
+      return xaiModels
+    case 'windsurf':
+    case 'windsurfpool':
+    case 'windsurfpoolapi':
+      return [
+        'claude-sonnet-4-5',
+        'claude-opus-4-5',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash',
+        'gpt-5.4',
+        'gpt-5.4-mini',
+        'gpt-5.3-codex'
+      ]
+    case 'kiro':
+    case 'kirogo':
+    case 'kiro-go':
+      return [
+        'claude-sonnet-4-5',
+        'claude-haiku-4-5',
+        'claude-opus-4-5',
+        'gemini-2.5-pro',
+        'gemini-2.5-flash'
+      ]
+    default:
+      return []
   }
 }
 
